@@ -1,0 +1,288 @@
+{
+  "info": {
+    "name": "Coffre-fort numérique — API (MVP)",
+    "_postman_id": "9c8e5b4f-3d4a-4b6f-bc7a-5b2c3f51aa11",
+    "description": "Collection Postman prête à l'emploi pour tester l'API du coffre-fort numérique.\n\nGuide rapide:\n- Définir la variable `baseUrl` (par défaut http://localhost:8080).\n- Appeler `Auth / Login` pour récupérer un JWT — il sera stocké automatiquement dans la variable de collection `token`.\n- Les autres requêtes utilisent automatiquement le Bearer token.\n- Les endpoints publics et d'auth n'utilisent pas d'authentification.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "email", "value": "alice@example.com" },
+    { "key": "password", "value": "SuperPassw0rd!" },
+    { "key": "token", "value": "" },
+    { "key": "folderId", "value": "100" },
+    { "key": "fileId", "value": "500" },
+    { "key": "shareId", "value": "900" },
+    { "key": "publicToken", "value": "AbCdEfGhIj" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ {"key":"Content-Type","value":"application/json"} ],
+            "url": { "raw": "{{baseUrl}}/auth/register", "host":["{{baseUrl}}"], "path":["auth","register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+                  "try {",
+                  "  const data = pm.response.json();",
+                  "  if (data && data.access_token) {",
+                  "    pm.collectionVariables.set('token', data.access_token);",
+                  "    pm.test('JWT enregistré dans la variable de collection', function () { pm.expect(pm.collectionVariables.get('token')).to.be.a('string'); });",
+                  "  } else {",
+                  "    pm.test('Réponse contient un access_token', function () { pm.expect.fail('access_token manquant'); });",
+                  "  }",
+                  "} catch (e) { pm.test('Réponse JSON', function () { pm.expect.fail('JSON invalide'); }); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ {"key":"Content-Type","value":"application/json"} ],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host":["{{baseUrl}}"], "path":["auth","login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Folders",
+      "item": [
+        {
+          "name": "List folders (parent_id optional)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/folders?parent_id={{folderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["folders"],
+              "query": [ {"key":"parent_id","value":"{{folderId}}"} ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create folder",
+          "request": {
+            "method": "POST",
+            "header": [ {"key":"Content-Type","value":"application/json"} ],
+            "url": { "raw": "{{baseUrl}}/folders", "host":["{{baseUrl}}"], "path":["folders"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Projets\",\n  \"parent_id\": {{folderId}}\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete folder",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/folders/{{folderId}}", "host":["{{baseUrl}}"], "path":["folders","{{folderId}}"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Files",
+      "item": [
+        {
+          "name": "List files in folder",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/files?folder={{folderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["files"],
+              "query": [ {"key":"folder","value":"{{folderId}}","disabled":false} ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload file (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [ ],
+            "url": { "raw": "{{baseUrl}}/files", "host":["{{baseUrl}}"], "path":["files"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "folder_id", "value": "{{folderId}}", "type": "text" },
+                { "key": "file", "type": "file", "src": [] },
+                { "key": "filename", "value": "scan-carte-id.pdf", "type": "text" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get file metadata",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/files/{{fileId}}", "host":["{{baseUrl}}"], "path":["files","{{fileId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete file",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/files/{{fileId}}", "host":["{{baseUrl}}"], "path":["files","{{fileId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Add file version (multipart)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/files/{{fileId}}/versions", "host":["{{baseUrl}}"], "path":["files","{{fileId}}","versions"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [] },
+                { "key": "filename", "value": "contrat-v2.pdf", "type": "text" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Download file (binary)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/files/{{fileId}}/download", "host":["{{baseUrl}}"], "path":["files","{{fileId}}","download"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Shares",
+      "item": [
+        {
+          "name": "List shares",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/shares", "host":["{{baseUrl}}"], "path":["shares"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Create share (by expiration)",
+          "request": {
+            "method": "POST",
+            "header": [ {"key":"Content-Type","value":"application/json"} ],
+            "url": { "raw": "{{baseUrl}}/shares", "host":["{{baseUrl}}"], "path":["shares"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"file\",\n  \"target_id\": {{fileId}},\n  \"label\": \"Envoi contrat à Jean\",\n  \"expires_at\": \"2025-12-31T23:59:59Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create share (by max_uses)",
+          "request": {
+            "method": "POST",
+            "header": [ {"key":"Content-Type","value":"application/json"} ],
+            "url": { "raw": "{{baseUrl}}/shares", "host":["{{baseUrl}}"], "path":["shares"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"folder\",\n  \"target_id\": {{folderId}},\n  \"label\": \"Photos vacances\",\n  \"max_uses\": 5\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke share",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/shares/{{shareId}}/revoke", "host":["{{baseUrl}}"], "path":["shares","{{shareId}}","revoke"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Public (no auth)",
+      "item": [
+        {
+          "name": "Get public share info",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/s/{{publicToken}}", "host":["{{baseUrl}}"], "path":["s","{{publicToken}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Download via public link",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/s/{{publicToken}}/download", "host":["{{baseUrl}}"], "path":["s","{{publicToken}}","download"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Me",
+      "item": [
+        {
+          "name": "Get my quota",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/me/quota", "host":["{{baseUrl}}"], "path":["me","quota"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get my activity",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/me/activity", "host":["{{baseUrl}}"], "path":["me","activity"] }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
