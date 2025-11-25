@@ -54,10 +54,10 @@ class FileRepository
     }
 
     
-    public function quotaBytes(int $userId): int
-    {
-        return (int)$this->db->get('users', 'quota_total', ['id' => $userId]);
-    }
+    // public function quotaBytes(int $userId): int ??? à supprimer??
+    // {
+    //     return (int)$this->db->get('users', 'quota_total', ['id' => $userId]);
+    // }
 
     public function userQuotaTotal(int $userId): int 
     {
@@ -65,9 +65,37 @@ class FileRepository
         return (int)($this->db->get('users', 'quota_total', ['id' => $userId]) ?: 0);
     }
 
-    public function updateQuota(int $bytes): void //?????????????????????????????????????
+    // Met à jour le quota_total d'un utilisateur
+    public function updateUserQuota(int $userId, int $quotaTotal): void
     {
-        $this->db->update('users', ['value' => $bytes], ['name' => 'quota_total']);
+        $this->db->update('users', [
+            'quota_total' => $quotaTotal
+        ], [
+            'id' => $userId
+        ]);
+    }
+
+    // Met à jour le quota_used d'un utilisateur
+    public function updateQuotaUsed(int $userId, int $quotaUsed): void
+    {
+        $this->db->update('users', [
+            'quota_used' => $quotaUsed
+        ], [
+            'id' => $userId
+        ]);
+    }
+
+    // Récupère les infos complètes d'un utilisateur
+    public function getUser(int $userId): ?array
+    {
+        return $this->db->get('users', [
+            'id',
+            'email',
+            'quota_total',
+            'quota_used',
+            'is_admin',
+            'created_at'
+        ], ['id' => $userId]) ?: null;
     }
 
     // derniers uploads de user
