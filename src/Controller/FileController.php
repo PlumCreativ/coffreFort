@@ -189,7 +189,7 @@ class FileController
 
         $id = $this->files->create([
             'user_id'       => 1,               //à changer en récupérant le bon user_id!!!
-            'folder_id'     => 6,               //à changer en récupérant le bon folder_id!!!
+            'folder_id'     => 1,               //à changer en récupérant le bon folder_id!!!
             'original_name' => $originalName,
             'stored_name'   => $storedName,
             'mime'          => $mimeType,
