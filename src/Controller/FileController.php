@@ -285,36 +285,36 @@ class FileController
 
 
     // PUT /quota
-    public function setQuota(Request $request, Response $response): Response
-    {
-        // régi => 52428800
-        $body = $request->getParsedBody();
+    // public function setQuota(Request $request, Response $response): Response
+    // {
+    //     // régi => 52428800
+    //     $body = $request->getParsedBody();
 
-        if (!isset($body['quota_bytes'])) {
+    //     if (!isset($body['quota_bytes'])) {
 
-            $error = ['error' => 'Le champ "quota_bytes est obligatoire'];
+    //         $error = ['error' => 'Le champ "quota_bytes est obligatoire'];
 
-            $response->getBody()->write(json_encode($error, JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-        }
+    //         $response->getBody()->write(json_encode($error, JSON_PRETTY_PRINT));
+    //         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    //     }
 
-        $bytes = (int)$body['quota_bytes']; //=> convertir en entier
+    //     $bytes = (int)$body['quota_bytes']; //=> convertir en entier
 
-        // update le quota_bytes
-        $quotaNew = $this->files->updateQuota($bytes);
+    //     // update le quota_bytes
+    //     $quotaNew = $this->files->updateQuota($bytes);
 
-        $quota = $this->files->quotaBytes();
+    //     $quota = $this->files->quotaBytes();
 
-        $data = [
-            // 'total_size_bytes' => $totalSize,
-            'quota_bytes'      => $quota,
-            // 'file_count'        => $count,
-        ];
+    //     $data = [
+    //         // 'total_size_bytes' => $totalSize,
+    //         'quota_bytes'      => $quota,
+    //         // 'file_count'        => $count,
+    //     ];
 
-        $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+    //     $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
+    //     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 
-    }
+    // }
 
 
     // GET /me/quota — utilisé / total / %
