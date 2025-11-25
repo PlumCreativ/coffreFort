@@ -1,3 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CoffreFort</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+  </head>
+    <body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+
+    
+
+
+    </body>
+</html>
+
 <?php
 use Slim\Factory\AppFactory;
 use Medoo\Medoo;
@@ -60,35 +77,35 @@ $app->post('/auth/register', [$userController, 'register']);
 $app->post('/auth/login', [$userController, 'login']);
 
 // Route d'accueil (GET /)
-$app->get('/', function ($request, $response) {
-    $response->getBody()->write(json_encode([
-        'message' => 'File Vault API',
-        'endpoints' => [
-            'GET /files',
-            'GET /filesPaginated',
-            'GET /files/{id}',
-            'GET /files/{id}/download',
-            'POST /files',
-            'DELETE /files/{id}',
-            'GET /stats',
-            'PUT /quota',
-            'GET /me/quota',
-            'GET /me/activity',
+// $app->get('/', function ($request, $response) {
+//     $response->getBody()->write(json_encode([
+//         'message' => 'File Vault API',
+//         'endpoints' => [
+//             'GET /files',
+//             'GET /filesPaginated',
+//             'GET /files/{id}',
+//             'GET /files/{id}/download',
+//             'POST /files',
+//             'DELETE /files/{id}',
+//             'GET /stats',
+//             'PUT /quota',
+//             'GET /me/quota',
+//             'GET /me/activity',
 
-            'GET /users',
-            'GET /users/{id}',
-            'DELETE /users/{id}',
+//             'GET /users',
+//             'GET /users/{id}',
+//             'DELETE /users/{id}',
 
-            'POST /auth/register',
-            'POST /auth/login',
+//             'POST /auth/register',
+//             'POST /auth/login',
             
-            'GET /folders',
-            'POST /folders',
-            'DELETE /folders/{id}',
-        ]
-    ], JSON_PRETTY_PRINT));
-    return $response->withHeader('Content-Type', 'application/json');
-});
+//             'GET /folders',
+//             'POST /folders',
+//             'DELETE /folders/{id}',
+//         ]
+//     ], JSON_PRETTY_PRINT));
+//     return $response->withHeader('Content-Type', 'application/json');
+// });
 
 // Route de debug pour vérifier PHP
 $app->get('/debug-upload', function ($request, $response) {
