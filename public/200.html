@@ -1,62 +1,75 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bootstrap demo</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-  </head>
-  <body>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-  
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>CryptoVault - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 
-    <nav class="navbar navbar-expand-lg bg-body-tertiary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">Navbar</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-            </button>
-        </div>
+<body>
 
-        
-        <div class="me-5 collapse navbar-collapse" id="navbarNav">
-            <ul class="d-flex navbar-nav">
-                <li class="nav-item">
-                <a class="nav-link active" aria-current="page" href="#">Home</a>
-                </li>
-            </ul>
-        </div>
-    </nav>
+    <header>
 
-    <header class="d-flex justify-content-center flex-column align-items-center gzp-5">
 
-        <div class="container text-center my-4">
-            <h1>Welcome to Coffre Fort</h1>
-            <p class="lead">Your secure file storage solution</p>
-        </div>
+        <nav class="navbar">
 
-        <div class="card" style="width: 25rem;">
-            <img src="img/file-arrow-down-solid-full.svg" style="width: 10em; height: 10em;">
-            <div class="card-body">
-                <h5 class="card-title">Nom du fichier</h5>
-                <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card’s content.</p>
-            </div>
-            <ul class="list-group list-group-flush">
-                <li class="list-group-item">author du fichier: </li>
-                <li class="list-group-item">taille du fichier: </li>
-                <li class="list-group-item">Le fichier a été crée le: </li>
-            </ul>
-            <div class="card-body">
-                <a href="#" class="card-link">Télécharger</a>
-                <a href="#" class="card-link">Partager</a>
-            </div>
-        </div>
+                
+            <!-- Icon -->
+                <div class="">
+                    <img src="img/logo.png" width="100" height="100" alt="Logo">
+                    </img>
+                </div>
+
+        </nav>
+
     </header>
+    <!-- Navbar
+    <nav class="navbar">
+        <div class="nav-left">CryptoVault</div>
+        <div class="nav-right"><a href="#">Home</a></div>
+    </nav> -->
 
-    <folder class="d-flex justify-content-center flex-column align-items-center mt-5">
-        <div class="container text-center">
-            <h2>Your Files</h2>
-            <p class="lead">Manage and access your files securely</p>
+    <!-- Hero Section -->
+    <section class="hero">
+        <h1>Welcome to CryptoVault</h1>
+        <p>Your secure file storage solution</p>
+    </section>
+
+    <!-- File Card -->
+    <section class="file-section">
+        <div class="file-card">
+
+            <div class="file-icon">
+                <!-- Icône fichier -->
+                <img src="img/file_download.svg" style="width: 10em; height: 10em;">
+
+            </div>
+
+            <div class="file-content">
+                <h3>Nom du fichier</h3>
+                <p>Some quick example text to build on the card title and make up the bulk of the card’s content.</p>
+            </div>
+
+            <div class="file-info">
+                <p><strong>Auteur du fichier :</strong> John Doe</p>
+                <p><strong>Taille du fichier :</strong> 2.3 MB</p>
+                <p><strong>Créé le :</strong> 20/02/2025</p>
+            </div>
+
+            <div class="file-actions">
+                <a href="#" class="btn-link">Télécharger</a>
+                <a href="#" class="btn-link">Partager</a>
+            </div>
         </div>
+    </section>
+
+    <!-- Files header -->
+    <section class="files-header">
+        <h2>Your Files</h2>
+        <p>Manage and access your files securely</p>
+    </section>
+
 </body>
 </html>
