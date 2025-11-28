@@ -17,9 +17,23 @@ class FileRepository
         return $this->db->select('files', '*');
     }
 
-      public function listFilesByFolder(int $folderId): array
+    public function listFilesByFolder(int $folderId): array
     {
         return $this->db->select('files', '*', ['folder_id' => $folderId]);
+    }
+
+    public function listFoldersByUser(int $userId): array
+    {
+        return $this->db->select('folders', [
+            'id',
+            'user_id',
+            'parent_id',
+            'name',
+            'created_at'
+        ], [
+            'user_id' => $userId,
+            'ORDER' => ['name' => 'ASC']
+        ]);
     }
 
     public function find(int $id): ?array

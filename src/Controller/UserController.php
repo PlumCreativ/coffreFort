@@ -117,7 +117,7 @@ class UserController
             'aud' => 'coffre-fort-users',    // audience
             'iat' => time(),                 // date d’émission
             'exp' => time() + 3600,          // expiration (1h)
-            'sub' => $user['id'],            // identifiant utilisateur
+            'user_id' => $user['id'],        // identifiant utilisateur
             'email' => $user['email'],
             'is_admin' => $user['is_admin']
         ];
