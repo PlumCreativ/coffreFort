@@ -9,51 +9,19 @@
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-
+        <link rel="stylesheet" href="style.css">
     </head>
 
-
-    <?php
-
-        $errorMessage  = '';
-        if( isset( $_GET['invaliduserId'] ) ) {
-            $errorMessage = 'Désolé ! ce mail est déjà utilisé.';
-        }
-
-        if( isset( $_GET['invalidpass'] ) ) {
-            $errorMessage = 'Désolé ! Mot de passe invalide.';
-        }
-        if( isset( $_GET['invalidconfirm'] ) ) {
-            $errorMessage = 'Erreur sur la confirmation du mot de passe';
-        }
-        // if( isset( $_GET['invaliduser'] ) ) {
-        //     $errorMessage = 'Erreur sur le choix de la connexion';
-        // }
-
-    ?>
-
     <body>
-        <header class="container-fluid">
+        <header>
 
-
-            <nav>
-
-                   
+            <nav class="navbar">
                 <!-- Icon -->
-                    <div class="d-flex justify-content-center">
-                        <img src="img/logo.png" width="100" height="100" alt="Logo">
+                <div class="d-flex justify-content-center logo">    
+                <img  src="img/logo.jpeg" width="100" height="100" alt="Logo">
                         </img>
                     </div>
-
             </nav>
-
-
-        
-            <?php
-            if( !empty( $errorMessage ) ) {
-                echo '<p class="col-9 ml-4 col alert alert-danger">' . $errorMessage .'</p>';
-            }
-            ?>
 
             <div class="my-5 row justify-content-center">
                 <aside class="container-fluid col-4">
@@ -70,7 +38,7 @@
                             </div>
 
                             <!-- Form -->
-                            <form class="mb-5" name="accesform" method="post" action="encrypt.php">
+                            <form class="mb-5" method="post" action="/auth/register" id="loginForm">
                                 
                                 <!-- Inputs -->
                                 <div class="d-column justify-content-center">
@@ -78,7 +46,7 @@
                                     <div class="mb-4">
                                         <label class="text-secondary" for="Your email">Your email</label>
                                         <input type="text" class="form-control border rounded p-2"
-                                        id="userId" name="userId" required>
+                                        id="userId" name="email" required>
                                     </div>
                                         
                                     <div class="mb-4">
@@ -98,7 +66,7 @@
                                 <!-- Button Log in-->
                                 <div class="row justify-content-center gap-3">
                                     <div class="d-grid">
-                                        <button type="submit" class="btn btn-primary rounded-5 p-2">Sing in</button>
+                                        <button type="submit" class="button-primary">Sing in</button>
                                     </div>
 
                                     <!-- Privates links -->
@@ -136,7 +104,7 @@
                         <!-- Button Create account-->
                         <div class="row justify-content-center mb-4">
                             <div class="d-grid">
-                                <a class="btn btn-outline-primary btn-create  p-2" href="login.php">Log in</a>
+                                <a class="button-secondary" href="login.php">Log in</a>
                             </div>
                         </div>
 
@@ -146,6 +114,28 @@
 
             </div>
         </header>
+
+        <script>
+            document.querySelector("#loginForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const data = Object.fromEntries(new FormData(e.target));
+
+            const response = await fetch("/auth/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            const json = await response.json();
+
+            if (json.success) {
+                window.location.href = json.redirect; // redirection clean
+            } else {
+                alert(json.error);
+            }
+        });
+        </script>
 
     </body>
 </html>

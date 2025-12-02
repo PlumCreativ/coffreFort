@@ -2,7 +2,7 @@
 body {
     margin: 0;
     padding: 0;
-    background: #f2f2f7;
+    background: #E5E5E5;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: #1a1a1a;
 }
@@ -93,7 +93,7 @@ body {
 .btn-link {
     text-decoration: none;
     font-weight: 600;
-    color: #2163f6;
+    color: #980b0b;
     cursor: pointer;
     transition: 0.3s;
 }
@@ -114,4 +114,143 @@ body {
 
 .files-header p {
     color: #555;
+}
+
+
+/* Buttons */
+
+.button-primary {
+    background-color: #980b0b;
+    text-align: center;
+    text-decoration: none;
+    color: #fff;
+    padding: 10px 20px;
+    border: 2px solid #980b0b;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: linear 0.3s;
+}
+
+.button-primary:hover {
+    filter: brightness(85%);
+}
+
+.button-secondary {
+    text-align: center;
+    text-decoration: none;
+    color: #000;
+    padding: 10px 20px;
+    border: 2px solid #980b0b;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+.button-secondary:hover {
+    background-color: #980b0b;
+    color: #fff;
+}
+
+
+/* Features Table */
+.features-table {
+    width: 60%;
+    margin: 0 auto 60px auto;
+    border-collapse: collapse;
+}
+
+.features-table th, .features-table td {
+    border: 1px solid #ddd;
+    padding: 12px 15px;
+    text-align: left;
+}
+
+.features-table th {
+    background-color: #F2F2F7;
+    font-weight: 600;
+}
+
+.table-container {
+    background-color: #F2F2F7;
+}
+
+.table-parameters {    
+    display: flex;
+    justify-content: center;
+    align-items: space-around;
+    overflow-x: auto;
+    gap: 40px;
+}
+
+.table-container table {
+    min-width: 300px;
+    border-collapse: collapse;
+}
+
+.search-container {
+    position: relative;
+    width: 100%;
+    max-width: 300px;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 10px 15px 10px 40px; /* espace à gauche pour l'icone */
+    border: 1px solid #444;
+    border-radius: 8px;
+    outline: none;
+    font-size: 14px;
+    transition: border-color .2s ease;
+}
+
+.option-container {
+    position: relative;
+    width: 100%;
+    max-width: 70px;
+}
+
+.option-container select {
+    width: 100%;
+    padding: 10px 10px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    appearance: none;
+    color: #757575;
+    outline: none;
+    font-size: 14px;
+    transition: border-color .2s ease;
+}
+
+.search-container input:focus {
+    border-color: #777;
+}
+
+.search-container .search-icon {
+    position: absolute;
+    left: 10px;
+    top: 45%;
+    transform: translateY(-50%);
+    color: #aaa;
+    font-size: 18px;
+    pointer-events: none; /* clique possible sur l'input */
+}
+
+.option-container .option-ico {
+    position: absolute;
+    right: 10px;
+    top: 45%;
+    transform: translateY(-50%);
+    color: #aaa;
+    font-size: 18px;
+    pointer-events: none; /* clique possible sur l'input */
+}
+
+.barre-info {
+    margin-left: auto;
+    margin-right: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 1;
 }

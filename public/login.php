@@ -11,72 +11,46 @@
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-
+        <link rel="stylesheet" href="style.css">
     </head>
 
-    <?php
-    $mess = '';
-    $userId = '';
-    if( isset( $_GET['error'] ) ) {
-        if( isset( $_GET['userIderror'] ) ) {
-            $mess = 'Erreur : Votre identifiant est non valide !';
-        }
-        if( isset( $_GET['passerror'] ) ) {
-            $mess = 'Erreur : Votre mot de passe est non valide !';
-            if( isset( $_SESSION['userId'] ) ) {
-                $userId = $_SESSION['userId'];
-                session_destroy();
-            }
-        }
-    }
-    ?>
-
-
     <body>
-        <header class="container-fluid">
+        <header>
 
-            <nav>
-
-                   
+            <nav class="navbar">
+                
                 <!-- Icon -->
-                    <div class="d-flex justify-content-center">
-                        <img src="img/logo.png" width="100" height="100" alt="Logo">
-                        </img>
-                    </div>
+                <div class="d-flex justify-content-center logo">
+                    <img src="img/logo.jpeg" width="100" height="100" alt="Logo">
+                    </img>
+                </div>
 
             </nav>
 
+        </header>
+         
+        
             <div class=" row justify-content-center mt-5">
                 <aside class="container-fluid col-4">
 
-                    <?php
-                    if( isset( $_GET['error'] ) ) {
-                        echo '<div class="row"><p class="col-10 alert alert-danger">' . $mess .'</p></div>';
-                    }
-                    ?>
-
                     <div class="row justify-content-center">
 
-
-                    
                         <!-- Sing in-->
                         <div class="frame">
 
-
-
                             <div class="text-center" >
-                                <H2 class="header-font H-font">Log In</H2>
+                                <h2 class="header-font H-font">Log In</h2>
                             </div>
 
                             <!-- Form -->
-                            <form class="my-5" name="accesform" method="post" action="validlogin.php">
+                            <form class="my-5" method="POST" action="/auth/login" id="loginForm">
                                 
-                                <!-- Inputs -->
+                            <!-- Inputs -->
                                 <div class="d-column justify-content-center">
 
                                     <div class="mb-4">
                                         <input type="text" class="form-control border rounded p-2"
-                                        id="userId" value="<?=$userId?>" placeholder="Your Name" name="userId" required>
+                                        id="email" placeholder="Your Name" name="email" required>
                                     </div>
 
                                     <div class="mb-4">
@@ -88,7 +62,7 @@
                                         </div>
 
                                         <input type="password" class="form-control border rounded p-2"
-                                        id="inputPassword" placeholder="Your password" name="password" required>
+                                        id="pass_hash" placeholder="Your password" name="password" required>
 
                                         <div class="d-flex mt-1 justify-content-end">
                                             <a class="link-dark link-underline-opacity-0 " href="#">Forget your password</a>
@@ -104,7 +78,7 @@
                                 <!-- Button Log in-->
                                 <div class="row justify-content-center">
                                     <div class="d-grid">
-                                        <button type="submit" class="btn btn-primary rounded-5 p-2">Log In</button>
+                                        <button type="submit" class="button-primary">Log In</button>
                                     </div>
 
                                 </div>
@@ -124,13 +98,58 @@
                     <div class="row justify-content-center mb-4">
                         <p class="p-4 text-center divider-P">Don’t have an account?</p>
                         <div class="d-grid">
-                            <a class="btn btn-outline-primary btn-create button-H p-2" href="singin.php">Sing up</a>
+                            <a class="button-secondary" href="singin.php">Sing up</a>
                         </div>
                     </div>
                     
                 </aside>
             </div>
+            <script>
+                document.querySelector("#loginForm").addEventListener("submit", async (e) => {
+                    e.preventDefault();
 
-        </header>
+                    const data = Object.fromEntries(new FormData(e.target));
+
+                    // 1) Envoie des identifiants au backend pour générer le JWT
+                    const response = await fetch("/auth/login", {
+                        method: "POST",
+                        headers: { 
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const json = await response.json();
+
+                    if (json.success) {
+
+                        // 2) Stocker correctement le token
+                        localStorage.setItem("jwt", json.jwt);
+
+                        // 3) Redirection
+                        const jwt = localStorage.getItem("jwt");
+
+                        window.location.href = "/dashboard?jwt=" + encodeURIComponent(jwt);
+
+
+                        // fetch('/dashboard', {
+                        //     method: "GET",
+                        //     headers: {
+                        //         "Authorization": "Bearer " + token
+                        //     }
+                        // })
+                        // .then(r => r.text())
+                        // .then(html => document.body.innerHTML = html);
+
+                        
+
+
+                    } else {
+                        alert(json.error);
+                    }
+                });
+
+
+            </script>
     </body>
 </html>
