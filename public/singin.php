@@ -38,7 +38,7 @@
                             </div>
 
                             <!-- Form -->
-                            <form class="mb-5" method="post" action="/auth/register" id="loginForm">
+                            <form class="mb-5" method="post" action="/auth/register" id="registerForm">
                                 
                                 <!-- Inputs -->
                                 <div class="d-column justify-content-center">
@@ -116,25 +116,49 @@
         </header>
 
         <script>
-            document.querySelector("#loginForm").addEventListener("submit", async (e) => {
-            e.preventDefault();
+                document.querySelector("#registerForm").addEventListener("submit", async (e) => {
+                    e.preventDefault();
 
-            const data = Object.fromEntries(new FormData(e.target));
+                    const data = Object.fromEntries(new FormData(e.target));
 
-            const response = await fetch("/auth/register", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
-            });
+                    // 1) Envoie des identifiants au backend pour générer le JWT
+                    const response = await fetch("/auth/register", {
+                        method: "POST",
+                        headers: { 
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(data)
+                    });
 
-            const json = await response.json();
+                    const json = await response.json();
 
-            if (json.success) {
-                window.location.href = json.redirect; // redirection clean
-            } else {
-                alert(json.error);
-            }
-        });
+                    if (json.success) {
+
+                        // 2) Stocker correctement le token
+                        localStorage.setItem("jwt", json.jwt);
+
+                        // 3) Redirection
+                        const token = localStorage.getItem("jwt");
+
+                        // window.location.href = "/dashboard?jwt=" + encodeURIComponent(jwt);
+
+
+                        fetch('/dashboard', {
+                            method: "GET",
+                            headers: {
+                                "Authorization": "Bearer " + token
+                            }
+                        })
+                        .then(r => r.text())
+                        .then(html => document.body.innerHTML = html);
+
+                        
+
+
+                    } else {
+                        alert(json.error);
+                    }
+                });
         </script>
 
     </body>

@@ -127,19 +127,19 @@
                         localStorage.setItem("jwt", json.jwt);
 
                         // 3) Redirection
-                        const jwt = localStorage.getItem("jwt");
+                        const token = localStorage.getItem("jwt");
 
-                        window.location.href = "/dashboard?jwt=" + encodeURIComponent(jwt);
+                        // window.location.href = "/dashboard?jwt=" + encodeURIComponent(jwt);
 
 
-                        // fetch('/dashboard', {
-                        //     method: "GET",
-                        //     headers: {
-                        //         "Authorization": "Bearer " + token
-                        //     }
-                        // })
-                        // .then(r => r.text())
-                        // .then(html => document.body.innerHTML = html);
+                        fetch('/dashboard', {
+                            method: "GET",
+                            headers: {
+                                "Authorization": "Bearer " + token
+                            }
+                        })
+                        .then(r => r.text())
+                        .then(html => document.body.innerHTML = html);
 
                         
 
