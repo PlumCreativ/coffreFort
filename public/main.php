@@ -137,5 +137,25 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const token = localStorage.getItem('jwt');
+    
+    if (!token) {
+        window.location.href = '/auth/login';
+    }
+
+    // Appel sécurisé à l'API
+    fetch('/dashboard', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        console.log('API main data:', data);
+    });
+</script>
 </body>
 </html>
