@@ -53,32 +53,32 @@ CREATE TABLE `file_versions`(
 );
 
 DROP TABLE IF EXISTS `shares`;
-CREATE TABLE `shares`(
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `user_id` BIGINT UNSIGNED,
-    `token` VARCHAR(255) NOT NULL,
-    `kind` ENUM('file', 'folder') NOT NULL,
-    `target_id` BIGINT UNSIGNED NOT NULL,
-    `label` VARCHAR(255) NOT NULL,
-    `expires_at` DATE NOT NULL,
-    `max_uses` MEDIUMINT NOT NULL,
-    `remaining_uses` MEDIUMINT NOT NULL,
-    `is_revoked` BOOLEAN NOT NULL,
-    `created_at` DATE NOT NULL,
-    CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CREATE TABLE `shares` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT UNSIGNED NOT NULL,
+  `kind` ENUM('file', 'folder') NOT NULL,
+  `target_id` INT UNSIGNED NOT NULL,
+  `token` CHAR(64) NOT NULL UNIQUE,
+  `label` VARCHAR(255) NULL,
+  `expires_at` DATETIME NULL,
+  `max_uses` INT UNSIGNED NULL,
+  `remaining_uses` INT UNSIGNED NULL,
+  `is_revoked` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 DROP TABLE IF EXISTS `downloads_log`;
-CREATE TABLE `downloads_log`(
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `share_id` BIGINT UNSIGNED,
-    `version_id` BIGINT UNSIGNED,
-    `downloaded_at` DATE NOT NULL,
-    `ip` VARCHAR(45) NOT NULL,
-    `user_agent` VARCHAR(255) NOT NULL,
-    `success` BOOLEAN NOT NULL,
-    CONSTRAINT `fk_downloads_share` FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
-    CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
+CREATE TABLE `downloads_log` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `share_id` INT UNSIGNED NOT NULL,
+  `version_id` INT UNSIGNED NULL,
+  `downloaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ip` VARCHAR(45) NOT NULL,
+  `user_agent` VARCHAR(255) NOT NULL,
+  `success` TINYINT(1) NOT NULL,
+  CONSTRAINT `fk_downloads_share` FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
+  CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
 
 -- Index utiles =????

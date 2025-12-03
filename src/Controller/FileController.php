@@ -369,37 +369,54 @@ class FileController
     }
 
 
-    // PUT /quota
-    // public function setQuota(Request $request, Response $response): Response
-    // {
-    //     // régi => 52428800
-    //     $body = $request->getParsedBody();
+// PUT /quota - Met à jour le quota d'un utilisateur
+    public function setQuota(Request $request, Response $response): Response
+    {
+        $body = $request->getParsedBody();
 
-    //     if (!isset($body['quota_bytes'])) {
+        // Validation du champ quota_total
+        if (!isset($body['quota_total'])) {
+            $error = ['error' => 'Le champ "quota_total" est obligatoire'];
+            $response->getBody()->write(json_encode($error, JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
 
-    //         $error = ['error' => 'Le champ "quota_bytes est obligatoire'];
+        // Validation que c'est un nombre positif
+        $bytes = (int)$body['quota_total'];
+        if ($bytes <= 0) {
+            $error = ['error' => 'Le quota doit être un nombre positif'];
+            $response->getBody()->write(json_encode($error, JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
 
-    //         $response->getBody()->write(json_encode($error, JSON_PRETTY_PRINT));
-    //         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
-    //     }
+        // ID de l'utilisateur => à remplacer par l'utilisateur connecté
+        $userId = isset($body['user_id']) ? (int)$body['user_id'] : 1;
 
-    //     $bytes = (int)$body['quota_bytes']; //=> convertir en entier
+        // Vérifier que l'utilisateur existe
+        $user = $this->files->getUser($userId);
+        if (!$user) {
+            $error = ['error' => 'Utilisateur non trouvé'];
+            $response->getBody()->write(json_encode($error, JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
 
-    //     // update le quota_bytes
-    //     $quotaNew = $this->files->updateQuota($bytes);
+        // Mettre à jour le quota
+        $this->files->updateUserQuota($userId, $bytes);
 
-    //     $quota = $this->files->quotaBytes();
+        // Récupérer les nouvelles données
+        $updatedUser = $this->files->getUser($userId);
 
-    //     $data = [
-    //         // 'total_size_bytes' => $totalSize,
-    //         'quota_bytes'      => $quota,
-    //         // 'file_count'        => $count,
-    //     ];
+        $data = [
+            'message' => 'Quota mis à jour avec succès',
+            'user_id' => $userId,
+            'quota_total' => $updatedUser['quota_total'],
+            'quota_used' => $updatedUser['quota_used'],
+            'quota_available' => $updatedUser['quota_total'] - $updatedUser['quota_used']
+        ];
 
-    //     $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
-    //     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
-
-    // }
+        $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+    }
 
 
     // GET /me/quota — utilisé / total / %

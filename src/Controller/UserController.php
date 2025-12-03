@@ -89,18 +89,150 @@ class UserController
 
         $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
         
-
-        // Réponse
         $response->getBody()->write(json_encode([
-            "success" => true,
-            "message" => "Register success",
-            "redirect" => "/dashboard",
-            'jwt' => $jwt
+            'message' => 'User created successfully',
+            'id' => $id,
+            'email' => $body['email']
         ], JSON_PRETTY_PRINT));
 
-
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
     }
+
+
+    // POST /auth/login - Authentifie un utilisateur et retourne un JWT =>??????? à vérifier!!!!
+//     public function login(Request $request, Response $response): Response {
+
+//     // 1. Récupération données POST (Slim décode automatiquement)
+//     $data = $request->getParsedBody();
+//     $email = $data['email'] ?? null;
+//     $password = $data['password'] ?? null;
+
+//     // // Recherche de l'utilisateur par email
+//     // $user = $this->users->findByEmail($data['email']);
+//     // if (!$user) {
+//     //     $response->getBody()->write(json_encode([
+//     //         'error' => 'Invalid credentials'
+//     //     ]));
+//     //     return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+//     // }
+
+//     // // Vérification du mot de passe
+//     // if (!password_verify($data['password'], $user['pass_hash'])) {
+//     //     $response->getBody()->write(json_encode([
+//     //         'error' => 'Invalid credentials'
+//     //     ]));
+//     //     return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+//     // }
+
+//     //     // Génération du JWT
+//     //     $payload = [
+//     //         'iss' => 'coffre-fort',          // émetteur
+//     //         'aud' => 'coffre-fort-users',    // audience
+//     //         'iat' => time(),                 // date d’émission
+//     //         'exp' => time() + 3600,          // expiration (1h)
+//     //         'user_id' => $user['id'],        // identifiant utilisateur
+//     //         'email' => $user['email'],
+//     //         'is_admin' => $user['is_admin']
+//     //     ];
+
+//     //     $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
+
+//         // Réponse
+//     // if (!$email || !$password) {
+//     //     $response->getBody()->write(json_encode([
+//     //         "success" => true,
+//     //         "message" => "Register success",
+//     //         "redirect" => "/dashboard",
+//     //         'jwt' => $jwt
+//     //     ], JSON_PRETTY_PRINT));
+
+
+//     //     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+//     // }
+
+//     // 2. Récupération utilisateur
+//     // $user = $data->get("users", "*", [ "email" => $email ]);
+//     $user = $this->users->findByEmail($data['email']);
+
+
+//     if (!$user) {
+//         $response->getBody()->write(json_encode([
+//             "success" => false,
+//             "error" => "User does not exist"
+//         ], JSON_PRETTY_PRINT));
+//         return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+//     }
+
+//     // 3. Vérification hash password
+//     if (!password_verify($password, $user['pass_hash'])) {
+//         $response->getBody()->write(json_encode([
+//             'error' => 'Invalid credentials'
+//         ]));
+//         return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+//     }
+
+//     // 4. Succès → stockage session
+//     // $_SESSION['user_id'] = $user['id'];
+//     // $_SESSION['email'] = $email;
+
+//     // 5. Réponse JSON propre (pas de header() !)
+
+//     // Génération du JWT
+//     $payload = [
+//         'iss' => 'coffre-fort',          // émetteur
+//         'aud' => 'coffre-fort-users',    // audience
+//         'iat' => time(),                 // date d’émission
+//         'exp' => time() + 3600,          // expiration (1h)
+//         'user_id' => $user['id'],            // identifiant utilisateur
+//         'email' => $user['email'],
+//         'is_admin' => $user['is_admin']
+//     ];
+
+//     $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
+    
+
+//     // Réponse
+//     $response->getBody()->write(json_encode([
+//         "success" => true,
+//         "message" => "Login success",
+//         "redirect" => "/dashboard",
+//         'jwt' => $jwt
+//     ], JSON_PRETTY_PRINT));
+
+
+//     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+// }
+// public function login(Request $request, Response $response): Response 
+// {
+//     // 1. Récupération du header Authorization
+//     $authHeader = $request->getHeaderLine('Authorization');
+
+//     if (!$authHeader || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+//         return $this->jsonError($response, "Missing or invalid Authorization header", 401);
+//     }
+
+//     $jwt = $matches[1];
+
+//     // 2. Décodage du token
+//     try {
+//         $decoded = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
+//     } catch (\Exception $e) {
+//         return $this->jsonError($response, "Invalid token: " . $e->getMessage(), 401);
+//     }
+
+//     // 3. Succès → dashboard
+//     $payload = (array)$decoded;
+
+//     $response->getBody()->write(json_encode([
+//         "success" => true,
+//         "message" => "Token valid",
+//         "user" => $payload,
+//         "redirect" => "/dashboard"
+//     ], JSON_PRETTY_PRINT));
+
+//     return $response->withHeader('Content-Type', 'application/json');
+// }
+
 
 
     // POST /auth/login - Authentifie un utilisateur et retourne un JWT =>??????? à vérifier!!!!
