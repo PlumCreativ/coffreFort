@@ -16,8 +16,30 @@
 <body>
 
 <header class="py-3 border-bottom bg-white">
-    <nav class="container d-flex justify-content-center">
-        <img src="img/logo.jpeg" width="80" class="logo" alt="CryptoVault logo">
+    <nav class="container d-flex justify-content-evenly justify-items-center">
+        <div>
+            <button class="btn btn-dark" type="button" data-bs-toggle="offcanvas" 
+                data-bs-target="#offcanvasWithBothOptions" aria-controls="offcanvasWithBothOptions">Dossier
+            </button>
+        </div>
+        <div class="offcanvas offcanvas-start" data-bs-scroll="true" tabindex="-1" 
+            id="offcanvasWithBothOptions" aria-labelledby="offcanvasWithBothOptionsLabel">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="offcanvasWithBothOptionsLabel">Les dossier sont afficher ici</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <p>Try scrolling the rest of the page to see this option in action.</p>
+            </div>
+        </div>
+        <div>
+            <img src="img/logo.jpeg" width="80" class="logo" alt="CryptoVault logo">
+        </div>
+        <div class="">
+            <button class="btn btn-outline-dark" type="button">
+                Quitter
+            </button>
+        </div>
     </nav>
 </header>
 
@@ -90,8 +112,8 @@
     </div>
 
     <!-- Progress -->
-    <div class="progress mb-4">
-        <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" style="width:75%">540 MB</div>
+    <div class="progress my-4" role="progressbar" aria-label="Danger example" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+    <div class="progress-bar text-bg-danger" style="width: 100%">100%</div>
     </div>
 
     <!-- Table -->
@@ -108,21 +130,15 @@
             <tbody>
                 <tr>
                     <td>File Upload</td>
-                    <td>Securely upload your files to the vault with encryption.</td>
-                    <td>Securely upload your files to the vault with encryption.</td>
-                    <td>Securely upload your files to the vault with encryption.</td>
+
                 </tr>
                 <tr>
                     <td>Folder Management</td>
-                    <td>Create, delete, and organize folders for better file management.</td>
-                    <td>Create, delete, and organize folders for better file management.</td>
-                    <td>Create, delete, and organize folders for better file management.</td>
+
                 </tr>
                 <tr>
                     <td>User Authentication</td>
-                    <td>Register and log in to access your secure file vault.</td>
-                    <td>Register and log in to access your secure file vault.</td>
-                    <td>Register and log in to access your secure file vault.</td>
+
                 </tr>
             </tbody>
         </table>
