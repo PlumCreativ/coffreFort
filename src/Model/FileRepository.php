@@ -178,4 +178,22 @@ class FileRepository
         return (bool)$this->db->get('folders', 'id', ['id' => $folderId]);
     }
 
+
+     // ======================= pour le shares ========================================
+
+    public function isOwnedByUser(int $fileId, int $userId): bool{
+        $count = $this->db->count('files', [
+            'id' => $fileId, 
+            'user_id' => $userId
+        ]);
+        return $count > 0;
+    }
+
+    public function folderOwnedByUser(int $folderId, int $userId): bool{
+        $count = $this->db->count('files', [
+            'folder_id' => $folderId,
+            'user_id' => $userId
+        ]);
+        return $count > 0;
+    }
 }

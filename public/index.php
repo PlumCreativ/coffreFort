@@ -3,6 +3,7 @@ use Slim\Factory\AppFactory;
 use Medoo\Medoo;
 use App\Controller\FileController;
 use App\Controller\UserController;
+use App\Controller\ShareController;
 use Slim\Psr7\UploadedFile;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -31,6 +32,7 @@ if ($basePath !== '') {
 
 $fileController = new FileController($database);
 $userController = new UserController($database);
+$shareController = new ShareController($database);
 
 // routes pour les fichiers
 $app->get('/files', [$fileController, 'list']);
@@ -59,6 +61,12 @@ $app->delete('/users/{id}', [$userController, 'delete']);
 $app->post('/auth/register', [$userController, 'register']);
 $app->post('/auth/login', [$userController, 'login']);
 
+//route pour les shares
+$app->post('/shares', [$shareController, 'createShare']);
+
+// ??? /shares/{token}/download
+$app->get('/s/{token}', [$shareController, 'publicDownload']);
+
 // Route d'accueil (GET /)
 $app->get('/', function ($request, $response) {
     $response->getBody()->write(json_encode([
@@ -85,6 +93,9 @@ $app->get('/', function ($request, $response) {
             'GET /folders',
             'POST /folders',
             'DELETE /folders/{id}',
+
+            'POST /shares',
+            'GET /s/{token}',
         ]
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');

@@ -68,6 +68,11 @@ CREATE TABLE `shares` (
   CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- à voir s'il faut car pour l'instant ok 
+ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
+CREATE INDEX idx_shares_token ON shares(token);
+
+
 DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
