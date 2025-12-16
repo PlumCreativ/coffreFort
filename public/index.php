@@ -32,6 +32,7 @@ if ($basePath !== '') {
 
 $fileController = new FileController($database);
 $userController = new UserController($database);
+$shareController = new ShareController($database);
 
 // routes pour les fichiers
 $app->get('/files', [$fileController, 'list']);
@@ -104,6 +105,9 @@ $app->get('/', function ($request, $response) {
             'GET /folders',
             'POST /folders',
             'DELETE /folders/{id}',
+
+            'POST /shares',
+            'GET /s/{token}',
         ]
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');

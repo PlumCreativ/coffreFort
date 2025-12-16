@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Model\FileRepository;
 use App\Model\UserRepository;
+use App\Security\AuthService;
 use Medoo\Medoo;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -15,6 +16,7 @@ class FileController
 {
     private Medoo $db; 
     private FileRepository $files;
+    private AuthService $auth;
     private string $uploadDir;
     private string $jwtSecret;
 
@@ -33,6 +35,7 @@ class FileController
 
         // Init du secret JWT (env ou param)
         $this->jwtSecret = $jwtSecret ?? ($_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '');
+        $this->auth = new AuthService($db, $this->jwtSecret);
 
         if ($this->jwtSecret === '') {
             // Tu peux aussi throw ici, mais je préfère debug clair
@@ -41,51 +44,51 @@ class FileController
     }
 
 
-    /** HELPER
-     * Récupère l'utilisateur authentifié à partir du header Authorization: Bearer <jwt>.
-     * 
-     * @throws \Exception avec code HTTP (401, 404, ...) en cas de problème.
-     */
-    private function getAuthenticatedUserFromToken(Request $request): array
-    {
-        // 1) Récupérer le header Authorization
-        $authHeader = $request->getHeaderLine('Authorization');
-        if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
-            throw new \Exception('Token manquant', 401);
-        }
+    // /** HELPER
+    //  * Récupère l'utilisateur authentifié à partir du header Authorization: Bearer <jwt>.
+    //  * 
+    //  * @throws \Exception avec code HTTP (401, 404, ...) en cas de problème.
+    //  */ => j'ai mis dans authservice.php => à supprimer si ça marche !!!!!!
+    // private function getAuthenticatedUserFromToken(Request $request): array
+    // {
+    //     // 1) Récupérer le header Authorization
+    //     $authHeader = $request->getHeaderLine('Authorization');
+    //     if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
+    //         throw new \Exception('Token manquant', 401);
+    //     }
 
-        $jwt = substr($authHeader, 7); // enlever "Bearer "
+    //     $jwt = substr($authHeader, 7); // enlever "Bearer "
 
-        // 2) Vérifier le secret
-        if (empty($this->jwtSecret)) {
-            throw new \Exception('JWT secret non configuré sur le serveur.', 500);
-        }
+    //     // 2) Vérifier le secret
+    //     if (empty($this->jwtSecret)) {
+    //         throw new \Exception('JWT secret non configuré sur le serveur.', 500);
+    //     }
 
-        // 3) Décoder le token
-        try {
-            $decoded = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
-        } catch (\Exception $e) {
-            throw new \Exception('Token invalide: ' . $e->getMessage(), 401);
-        }
+    //     // 3) Décoder le token
+    //     try {
+    //         $decoded = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
+    //     } catch (\Exception $e) {
+    //         throw new \Exception('Token invalide: ' . $e->getMessage(), 401);
+    //     }
 
-        $email = $decoded->email ?? null;
-        error_log("EMAIL DU TOKEN = " . ($email ?? 'NULL'));
+    //     $email = $decoded->email ?? null;
+    //     error_log("EMAIL DU TOKEN = " . ($email ?? 'NULL'));
 
-        if (!$email) {
-            throw new \Exception('Email manquant dans le token', 401);
-        }
+    //     if (!$email) {
+    //         throw new \Exception('Email manquant dans le token', 401);
+    //     }
 
-        // 4) Récupérer l'utilisateur
-        $userRepo = new \App\Model\UserRepository($this->db);
-        $user = $userRepo->findByEmail($email);
+    //     // 4) Récupérer l'utilisateur
+    //     $userRepo = new \App\Model\UserRepository($this->db);
+    //     $user = $userRepo->findByEmail($email);
 
-        if (!$user) {
-            throw new \Exception('Utilisateur introuvable', 404);
-        }
+    //     if (!$user) {
+    //         throw new \Exception('Utilisateur introuvable', 404);
+    //     }
 
-        // OK
-        return $user; // ex: ['id' => ..., 'email' => ...]
-    }
+    //     // OK
+    //     return $user; // ex: ['id' => ..., 'email' => ...]
+    // }
 
 
 
@@ -214,7 +217,7 @@ class FileController
         }
 
         // Validation du fichier
-        $maxSize = 2 * 1024 * 1024; // 2 Mo
+        $maxSize = 10 * 1024 * 1024; // 10 Mo
         $allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/doc', 'application/docx', 'application/pdf'];
         
         $size = $file->getSize();
@@ -222,7 +225,7 @@ class FileController
         
         // Vérification de la taille
         if ($size > $maxSize) {
-            $response->getBody()->write(json_encode(['error' => 'Taille trop grande (max. 2 Mo)']));
+            $response->getBody()->write(json_encode(['error' => 'Taille trop grande (max. 10 Mo)']));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
         
@@ -238,7 +241,7 @@ class FileController
             
         // Décoder le token JWT depuis le header Authorization
         try {
-            $user = $this->getAuthenticatedUserFromToken($request);
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
             $userId = (int)$user['id'];
         } catch (\Exception $e) {
             $code = $e->getCode() ?: 401;
@@ -246,12 +249,14 @@ class FileController
             return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
         }
 
-        // Récupérer folder_id depuis form-data ou query !!!! => remettre plus tard quand on lie avec le folder
-        // $folderId = (int)($request->getParsedBody()['folder_id'] ?? 0);
-        // if ($folderId <= 0 || !$this->files->folderExists($folderId)) {
-        //     $response->getBody()->write(json_encode(['error' => 'Dossier introuvable']));
-        //     return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
-        // }
+        //Récupérer folder_id depuis form-data ou query !!!! => remettre plus tard quand on lie avec le folder
+        $parsedBody = $request->getParsedBody();
+        //$folderId = 5; //=> pour le test avec postman;
+        $folderId = (int)($parsedBody['folder_id'] ?? 0);
+        if ($folderId <= 0 || !$this->files->folderExists($folderId)) {
+            $response->getBody()->write(json_encode(['error' => 'Dossier introuvable']));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
 
 
         $totalSize = $this->files->totalSize();
@@ -274,7 +279,7 @@ class FileController
 
         $id = $this->files->create([
             'user_id'       => $userId,               
-            'folder_id'     => 2,               //à changer en récupérant le bon folder_id!!! 
+            'folder_id'     => $folderId,               //récuperer le bon folder_id!!! 
             'original_name' => $originalName,
             'stored_name'   => $storedName,
             'mime'          => $mimeType,
@@ -312,13 +317,20 @@ class FileController
             return $response->withStatus(500);
         }
 
+        //ouvrir le fichier en lecture binaire
         $stream = fopen($path, 'rb');
-        $response->getBody()->write(stream_get_contents($stream));
+
+        $body = $response->getBody();
+        while (!feof($stream)) {
+            $body->write(fread($stream, 8192)); //=> lecture par chunks de 8192 => environ 8Ko
+        }
+        // $response->getBody()->write(stream_get_contents($stream));
         fclose($stream);
 
         return $response
             ->withHeader('Content-Type', $file['mime'])
             ->withHeader('Content-Disposition', 'attachment; filename="' . $file['original_name'] . '"')
+            ->withHeader('Content-Length', filesize($path))  //=> sans ça certain fichier ne se téléchargent pas correctement
             ->withStatus(200);
     }
 
@@ -528,7 +540,7 @@ class FileController
     public function listFolders(Request $request, Response $response): Response
     {
         try {
-            $user = $this->getAuthenticatedUserFromToken($request);
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
             $userId = (int)$user['id'];
         } catch (\Exception $e) {
             $code = $e->getCode();
