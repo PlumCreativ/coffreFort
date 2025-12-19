@@ -200,7 +200,7 @@ class ShareController{
             }
 
             if($share['remaining_uses'] !== null && (int)$share['remaining_uses'] <= 0){
-                return $this->json($response, ['error' => 'Ce partage a atteint son nombre maximum de téléchargements'], 403);
+                return $this->json($response, ['error' => 'Ce partage a atteint son nombre maximum de telechargements'], 403);
             }
 
             if($this->shareSecret === ''){

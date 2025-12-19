@@ -111,6 +111,8 @@ class UserController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
         }
 
+        //call pour le procédure stocké de BDD à mettre ici pour faire des logs pour toutes les connexions???
+
         // Génération du JWT
         $payload = [
             'iss' => 'coffre-fort',          // émetteur
