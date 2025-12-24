@@ -94,6 +94,16 @@ class FileRepository
         ]);
     }
 
+    // Met à jour le quota_used d'un utilisateur
+    public function updateQuotaUsed(int $userId, int $quotaUsed): void
+    {
+        $this->db->update('users', [
+            'quota_used' => $quotaUsed
+        ], [
+            'id' => $userId
+        ]);
+    }
+
     // Récupère les infos complètes d'un utilisateur
     public function getUser(int $userId): ?array
     {

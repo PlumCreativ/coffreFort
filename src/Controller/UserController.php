@@ -27,11 +27,8 @@ class UserController
     {
         $body = $request->getParsedBody();
 
-        $email = $body['email'] ?? null;
-        $password = $body['password'] ?? null;
-
         // Validation des champs requis
-        if (!isset($email) || !isset($password)) {
+        if (!isset($body['email']) || !isset($body['password'])) {
             $response->getBody()->write(json_encode([
                 'error' => 'Email and password are required'
             ]));
@@ -39,7 +36,7 @@ class UserController
         }
 
         // Validation de l'email
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!filter_var($body['email'], FILTER_VALIDATE_EMAIL)) {
             $response->getBody()->write(json_encode([
                 'error' => 'Invalid email format'
             ]));
@@ -47,7 +44,7 @@ class UserController
         }
 
         // Validation du mot de passe (minimum 8 caractères)
-        if (strlen($password) < 8) {
+        if (strlen($body['password']) < 8) {
             $response->getBody()->write(json_encode([
                 'error' => 'Password must be at least 8 characters long'
             ]));
@@ -55,7 +52,7 @@ class UserController
         }
 
         // Vérifier si l'email existe déjà
-        if ($this->users->findByEmail($email)) {
+        if ($this->users->findByEmail($body['email'])) {
             $response->getBody()->write(json_encode([
                 'error' => 'Email already exists'
             ]));
@@ -67,32 +64,17 @@ class UserController
 
         // Créer l'utilisateur
         $userData = [
-            'email' => $email,
-            'pass_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'email' => $body['email'],
+            'pass_hash' => password_hash($body['password'], PASSWORD_DEFAULT),
             'quota_used' => 0,
             // 'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
             'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
             'is_admin' => $isAdmin,
             'created_at' => date('Y-m-d')
         ];
-    
+
         $id = $this->users->create($userData);
 
-        $user = $this->users->findByEmail($email);
-
-        // Génération du JWT
-        $payload = [
-            'iss' => 'coffre-fort',          // émetteur
-            'aud' => 'coffre-fort-users',    // audience
-            'iat' => time(),                 // date d’émission
-            'exp' => time() + 3600,          // expiration (1h)
-            'user_id' => $user['id'],            // identifiant utilisateur
-            'email' => $user['email'],
-            'is_admin' => $user['is_admin']
-        ];
-
-        $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
-        
         $response->getBody()->write(json_encode([
             'message' => 'User created successfully',
             'id' => $id,
