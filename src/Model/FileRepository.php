@@ -57,6 +57,11 @@ class FileRepository
         return (int)$this->db->count('files');
     }
 
+    public function countFilesByUser(int $userId): int
+    {
+        return (int)($this->db->count('files', ['user_id' => $userId]) ?: 0);
+    }
+
      public function totalSize(): int
     {
         return (int)$this->db->sum('files', 'size') ?: 0;

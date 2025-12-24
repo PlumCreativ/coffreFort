@@ -59,13 +59,17 @@ class UserController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
         }
 
+        $isFirstUser = ($this->users->countUsers() === 0);
+        $isAdmin = $isFirstUser; //=> true pour le premier utilisateur
+
         // Créer l'utilisateur
         $userData = [
             'email' => $body['email'],
             'pass_hash' => password_hash($body['password'], PASSWORD_DEFAULT),
             'quota_used' => 0,
-            'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
-            'is_admin' => isset($body['is_admin']) ? (bool)$body['is_admin'] : false,
+            // 'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
+            'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
+            'is_admin' => $isAdmin,
             'created_at' => date('Y-m-d')
         ];
 
@@ -74,7 +78,8 @@ class UserController
         $response->getBody()->write(json_encode([
             'message' => 'User created successfully',
             'id' => $id,
-            'email' => $body['email']
+            'email' => $body['email'],
+            'is_admin' => $isAdmin
         ], JSON_PRETTY_PRINT));
 
         return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
@@ -94,11 +99,20 @@ class UserController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        // Validation basique (anti XSS)
+        $email = filter_var(trim($body['email']), FILTER_VALIDATE_EMAIL);
+        if (!$email) {
+            $response->getBody()->write(json_encode([
+                'error' => 'Invalid email format'
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
         // Recherche de l'utilisateur par email
         $user = $this->users->findByEmail($body['email']);
         if (!$user) {
             $response->getBody()->write(json_encode([
-                'error' => 'Invalid credentials'
+                'error' => 'Utilisateur avec cet email n\'existe pas'
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
         }
@@ -106,7 +120,7 @@ class UserController
         // Vérification du mot de passe
         if (!password_verify($body['password'], $user['pass_hash'])) {
             $response->getBody()->write(json_encode([
-                'error' => 'Invalid credentials'
+                'error' => 'Mot de passe incorrect'
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
         }
