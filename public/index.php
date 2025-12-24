@@ -3,7 +3,7 @@ use Slim\Factory\AppFactory;
 use Medoo\Medoo;
 use App\Controller\FileController;
 use App\Controller\UserController;
-use Slim\Psr7\Request;
+use App\Controller\ShareController;
 use Slim\Psr7\UploadedFile;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -32,6 +32,7 @@ if ($basePath !== '') {
 
 $fileController = new FileController($database);
 $userController = new UserController($database);
+$shareController = new ShareController($database);
 
 // routes pour les fichiers
 $app->get('/files', [$fileController, 'list']);
@@ -63,20 +64,11 @@ $app->post('/logout', [$userController,'logout']);
 // ROUTE LOGIN
 $app->post('/auth/login', [$userController, 'login']);
 
-// ROUTE DASHBOARD (protégée)
-$app->get('/dashboard', [$userController,'dashboard']);
+//route pour les shares
+$app->post('/shares', [$shareController, 'createShare']);
 
-$app->get('/main', function($request, $response)  {
-
-    // Récupération de la page principale
-    ob_start();
-    include __DIR__ . '/main.php';
-    $html = ob_get_clean();
-
-    $response->getBody()->write($html);
-    return $response->withHeader("Content-Type", "text/html");
-
-});
+// ??? /shares/{token}/download
+$app->get('/s/{token}', [$shareController, 'publicDownload']);
 
 // Route d'accueil (GET /)
 $app->get('/', function ($request, $response) {
@@ -104,6 +96,9 @@ $app->get('/', function ($request, $response) {
             'GET /folders',
             'POST /folders',
             'DELETE /folders/{id}',
+
+            'POST /shares',
+            'GET /s/{token}',
         ]
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');

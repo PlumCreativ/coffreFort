@@ -6,6 +6,15 @@ FROM php:8.2-apache
 # Extensions PHP
 RUN docker-php-ext-install pdo pdo_mysql
 
+# Augmenter la taille max upload (PHP)
+RUN { \
+    echo "upload_max_filesize=20M"; \
+    echo "post_max_size=25M"; \
+    echo "memory_limit=256M"; \
+    echo "max_execution_time=120"; \
+    echo "max_input_time=120"; \
+} > /usr/local/etc/php/conf.d/99-uploads.ini
+
 # Outils utiles pour Composer
 RUN apt-get update && apt-get install -y git zip unzip && rm -rf /var/lib/apt/lists/*
 

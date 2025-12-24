@@ -57,6 +57,11 @@ class FileRepository
         return (int)$this->db->count('files');
     }
 
+    public function countFilesByUser(int $userId): int
+    {
+        return (int)($this->db->count('files', ['user_id' => $userId]) ?: 0);
+    }
+
      public function totalSize(): int
     {
         return (int)$this->db->sum('files', 'size') ?: 0;
@@ -84,6 +89,16 @@ class FileRepository
     {
         $this->db->update('users', [
             'quota_total' => $quotaTotal
+        ], [
+            'id' => $userId
+        ]);
+    }
+
+    // Met à jour le quota_used d'un utilisateur
+    public function updateQuotaUsed(int $userId, int $quotaUsed): void
+    {
+        $this->db->update('users', [
+            'quota_used' => $quotaUsed
         ], [
             'id' => $userId
         ]);
@@ -168,4 +183,22 @@ class FileRepository
         return (bool)$this->db->get('folders', 'id', ['id' => $folderId]);
     }
 
+
+     // ======================= pour le shares ========================================
+
+    public function isOwnedByUser(int $fileId, int $userId): bool{
+        $count = $this->db->count('files', [
+            'id' => $fileId, 
+            'user_id' => $userId
+        ]);
+        return $count > 0;
+    }
+
+    public function folderOwnedByUser(int $folderId, int $userId): bool{
+        $count = $this->db->count('files', [
+            'folder_id' => $folderId,
+            'user_id' => $userId
+        ]);
+        return $count > 0;
+    }
 }
