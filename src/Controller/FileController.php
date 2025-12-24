@@ -395,7 +395,7 @@ class FileController
     }
 
 
-    // PUT /quota - Met à jour le quota d'un utilisateur
+// PUT /quota - Met à jour le quota d'un utilisateur
     public function setQuota(Request $request, Response $response): Response
     {
 

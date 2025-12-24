@@ -27,8 +27,11 @@ class UserController
     {
         $body = $request->getParsedBody();
 
+        $email = $body['email'] ?? null;
+        $password = $body['password'] ?? null;
+
         // Validation des champs requis
-        if (!isset($body['email']) || !isset($body['password'])) {
+        if (!isset($email) || !isset($password)) {
             $response->getBody()->write(json_encode([
                 'error' => 'Email and password are required'
             ]));
@@ -36,7 +39,7 @@ class UserController
         }
 
         // Validation de l'email
-        if (!filter_var($body['email'], FILTER_VALIDATE_EMAIL)) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $response->getBody()->write(json_encode([
                 'error' => 'Invalid email format'
             ]));
@@ -44,7 +47,7 @@ class UserController
         }
 
         // Validation du mot de passe (minimum 8 caractères)
-        if (strlen($body['password']) < 8) {
+        if (strlen($password) < 8) {
             $response->getBody()->write(json_encode([
                 'error' => 'Password must be at least 8 characters long'
             ]));
@@ -52,7 +55,7 @@ class UserController
         }
 
         // Vérifier si l'email existe déjà
-        if ($this->users->findByEmail($body['email'])) {
+        if ($this->users->findByEmail($email)) {
             $response->getBody()->write(json_encode([
                 'error' => 'Email already exists'
             ]));
@@ -64,17 +67,32 @@ class UserController
 
         // Créer l'utilisateur
         $userData = [
-            'email' => $body['email'],
-            'pass_hash' => password_hash($body['password'], PASSWORD_DEFAULT),
+            'email' => $email,
+            'pass_hash' => password_hash($password, PASSWORD_DEFAULT),
             'quota_used' => 0,
             // 'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
             'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
             'is_admin' => $isAdmin,
             'created_at' => date('Y-m-d')
         ];
-
+    
         $id = $this->users->create($userData);
 
+        $user = $this->users->findByEmail($email);
+
+        // Génération du JWT
+        $payload = [
+            'iss' => 'coffre-fort',          // émetteur
+            'aud' => 'coffre-fort-users',    // audience
+            'iat' => time(),                 // date d’émission
+            'exp' => time() + 3600,          // expiration (1h)
+            'user_id' => $user['id'],            // identifiant utilisateur
+            'email' => $user['email'],
+            'is_admin' => $user['is_admin']
+        ];
+
+        $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
+        
         $response->getBody()->write(json_encode([
             'message' => 'User created successfully',
             'id' => $id,
@@ -145,8 +163,91 @@ class UserController
             'jwt' => $jwt
         ], JSON_PRETTY_PRINT));
 
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+    return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+}
+// public function login(Request $request, Response $response): Response 
+// {
+//     // 1. Récupération du header Authorization
+//     $authHeader = $request->getHeaderLine('Authorization');
+
+//     if (!$authHeader || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+//         return $this->jsonError($response, "Missing or invalid Authorization header", 401);
+//     }
+
+//     $jwt = $matches[1];
+
+//     // 2. Décodage du token
+//     try {
+//         $decoded = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
+//     } catch (\Exception $e) {
+//         return $this->jsonError($response, "Invalid token: " . $e->getMessage(), 401);
+//     }
+
+//     // 3. Succès → dashboard
+//     $payload = (array)$decoded;
+
+//     $response->getBody()->write(json_encode([
+//         "success" => true,
+//         "message" => "Token valid",
+//         "user" => $payload,
+//         "redirect" => "/dashboard"
+//     ], JSON_PRETTY_PRINT));
+
+//     return $response->withHeader('Content-Type', 'application/json');
+// }
+
+
+// Petite méthode utilitaire
+private function jsonError(Response $response, string $msg, int $code): Response
+{
+    $response->getBody()->write(json_encode([
+        "success" => false,
+        "error" => $msg
+    ], JSON_PRETTY_PRINT));
+    return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
+}
+
+
+    // ROUTE DASHBOARD (protégée)
+public function dashboard(Request $request, Response $response)
+{
+    // 1) Essayer de récupérer via Header
+    $authHeader = $request->getHeaderLine('Authorization');
+    $jwt = null;
+
+    if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        $jwt = $matches[1];
     }
+
+    // 2) Si pas trouvé → essayer GET
+    if (!$jwt) {
+        $params = $request->getQueryParams();
+        $jwt = $params['jwt'] ?? null;
+    }
+
+    // 3) Si toujours rien → erreur
+    if (!$jwt) {
+        return $response->withStatus(401);
+    }
+
+    // 4) Décodage JWT
+    try {
+        $jwt = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
+    } catch (\Exception $e) {
+        return $response->withStatus(403);
+    }
+
+
+    // OK → retourne les données nécessaires
+    $response->getBody()->write(json_encode([
+        "success" => true,
+        "message" => "Bienvenue sur la page Main",
+        "email" => $jwt->email
+    ]));
+    
+    return $response->withHeader("Content-Type", "application/json");
+}
+
 
 
     // GET /users - Liste tous les utilisateurs

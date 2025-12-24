@@ -1,1 +1,4 @@
 /vendor/
+.env
+backup.sh
+restore.sh

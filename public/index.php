@@ -59,6 +59,9 @@ $app->delete('/users/{id}', [$userController, 'delete']);
 
 // route d'authentification et login
 $app->post('/auth/register', [$userController, 'register']);
+// $app->post('/auth/login', [$userController, 'login']);
+$app->post('/logout', [$userController,'logout']);
+// ROUTE LOGIN
 $app->post('/auth/login', [$userController, 'login']);
 
 //route pour les shares
