@@ -4,3 +4,5 @@ backup.sh
 restore.sh
 
 storage/uploads/*
+
+!storage/uploads/.gitkeep

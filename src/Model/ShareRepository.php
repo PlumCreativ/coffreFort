@@ -49,6 +49,7 @@ class ShareRepository{
         
     }
 
+    //pas utilisé
     public function decrementRemainingUses(int $id):bool {
         $stmt = $this->db->update('shares',[
             'remaining_uses[-]' => 1
@@ -62,10 +63,19 @@ class ShareRepository{
     }
 
 
- 
+    public function consumeUse(int $shareId): bool {
 
+        // décrémente seulement si remaining_uses est > 0
+        // retourne true si décrément OK, false sinon
+        $count = $this->db->update('shares', [
+            'remaining_uses[-]' => 1
+        ], [
+            'id' => $shareId,
+            'remaining_uses[>]' => 0
+        ])->rowCount();
 
-
+        return $count > 0;
+    }
 
 
 }
