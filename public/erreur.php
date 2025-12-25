@@ -1,82 +1,58 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bootstrap demo</title>
-    <link rel="stylesheet" href="style.css">
-  
-</head>
-  <body>
-  
-    <header class="container-fluid">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Bootstrap demo</title>
+        <link rel="stylesheet" href="style.css">
+    
+    </head>
+    <body>
+        <header class="container-fluid">
+            <nav class="navbar">
 
-
-        <nav class="navbar">
-
-                
-            <!-- Icon -->
+                <!-- Icon -->
                 <div class="logo">
                     <img src="img/logo.jpeg" width="100" height="100" alt="Logo">
                     </img>
                 </div>
+            </nav>
 
+        </header>
+        <!-- Navbar
+        <nav class="navbar">
+            <div class="nav-left">CryptoVault</div>
+            <div class="nav-right"><a href="#">Home</a></div>
+        </nav> -->
 
+        <!-- Hero Section -->
+        <section class="hero">
+            <h1>Welcome to CryptoVault</h1>
+            <p>Your secure file storage solution</p>
+        </section>
 
-        </nav>
-
-    </header>
-    <!-- Navbar
-    <nav class="navbar">
-        <div class="nav-left">CryptoVault</div>
-        <div class="nav-right"><a href="#">Home</a></div>
-    </nav> -->
-
-    <!-- Hero Section -->
-    <section class="hero">
-        <h1>Welcome to CryptoVault</h1>
-        <p>Your secure file storage solution</p>
-    </section>
-
-    <!-- File Card -->
-    <section class="file-section">
-        <div class="file-card">
-
-            <div class="file-icon">
-                <!-- Icône fichier -->
-                <img src="img/error.svg" style="width: 10em; height: 10em;" alt="...">
-                
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h2>Erreur de Partage</h2>
-                        <p>Le lien de partage n'est pas fonctionnelle, ou est expiré, voyez réessayer avec un nouveau lien.</p>
-                        <p><small>Last updated 25 November 2025</small></p>
-                    </div>
+        <!-- File Card -->
+        <section class="file-section">
+            <div class="file-card">
+                <div class="file-icon">
+                    <!-- Icône fichier -->
+                    <img src="img/error.svg" style="width: 10em; height: 10em;" alt="...">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h2>Erreur de Partage</h2>
+                            <p>Le lien de partage n'est pas fonctionnelle, ou est expiré, voyez réessayer avec un nouveau lien.</p>
+                            <p><small>Last updated 25 November 2025</small></p>
+                        </div>
+                        </div>
                     </div>
                 </div>
-
             </div>
+        </section>
 
-
-        </div>
-    </section>
-
-    <!-- Files header -->
-    <footer class="files-header">
-        <h2>Your Files</h2>
-        <p>Manage and access your files securely</p>
-    </footer>
-</body>
+        <!-- Files header -->
+        <footer class="files-header">
+            <h2>Your Files</h2>
+            <p>Manage and access your files securely</p>
+        </footer>
+    </body>
 </html>
-
-
-<!-- 
-    <header class="d-flex justify-content-center flex-column align-items-center gzp-5">
-
-        <div class="container text-center my-4">
-            <h1>Welcome to Coffre Fort</h1>
-            <p class="lead">Your secure file storage solution</p>
-        </div>
-
-
-    </header> -->

@@ -66,9 +66,12 @@ $app->post('/auth/login', [$userController, 'login']);
 
 //route pour les shares
 $app->post('/shares', [$shareController, 'createShare']);
+$app->get('/shares', [$shareController, 'listShares']);
+$app->post('/shares/{id}/revoke', [$shareController, 'revokeShare']);
+$app->get('/s/{token}', [$shareController, 'publicShare']);
 
-// ??? /shares/{token}/download
-$app->get('/s/{token}', [$shareController, 'publicDownload']);
+///shares/{token}/download
+$app->get('/s/{token}/download', [$shareController, 'publicDownload']);
 
 // Route d'accueil (GET /)
 $app->get('/', function ($request, $response) {
@@ -98,7 +101,10 @@ $app->get('/', function ($request, $response) {
             'DELETE /folders/{id}',
 
             'POST /shares',
+            'GET /shares',
+            'POST /shares/{id}/revoke',
             'GET /s/{token}',
+            'GET /s/{token}/download',
         ]
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');
@@ -118,3 +124,5 @@ $app->get('/debug-upload', function ($request, $response) {
 });
 
 $app->run();
+
+?>

@@ -82,6 +82,7 @@ CREATE TABLE `downloads_log` (
   `ip` VARCHAR(45) NOT NULL,
   `user_agent` VARCHAR(255) NOT NULL,
   `success` TINYINT(1) NOT NULL,
+  `message` VARCHAR(255) NULL,
   CONSTRAINT `fk_downloads_share` FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
   CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
