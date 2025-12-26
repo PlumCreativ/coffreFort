@@ -186,6 +186,108 @@ class FileRepository
     }
 
 
+    //======= pour le versionnage =================
+
+    // pour récuperer aussi le "current version"
+    public function getMaxVersionForFile(int $fileId): int
+    {
+        $max = $this->db->max('file_versions', 'version', ['file_id' => $fileId]);
+        return (int)($max ?: 0);
+    }
+
+    public function createFileVersion(array $data): int
+    {
+        $this->db->insert('file_versions', $data);
+        return (int)$this->db->id();
+    }
+
+    public function updateFileMeta(int $fileId, array $data): void
+    {
+        $this->db->update('files', $data, ['id' => $fileId]);
+    }
+
+    public function getVersionCount(int $fileId): int
+    {
+        $count = $this->db->count('file_versions', ['file_id' => $fileId]) ?: 0;
+        return (int)$count;
+    }
+
+    // n darab dernières versions
+    public function getLatestVersions(int $fileId, int $limit = 5): array
+    {
+        return $this->db->select('file_versions', [
+            'version', 
+            'size', 
+            'created_at', 
+            'checksum'
+        ], [
+            'file_id' => $fileId, 
+            'ORDER' => ['version' => 'DESC'], 
+            'LIMIT' => $limit
+        ]) ?: [];
+    }
+
+    public function listVersionsPaginated(int $fileId, int $page = 1, int $limit =20): array
+    {
+        if($page < 1) $page = 1; 
+        if($limit < 1) $limit = 20;
+        if($limit > 100) $limit = 100;
+
+        $offset = ($page -1) *$limit;
+
+        $rows = $this->db->select('file_versions', [
+            'id',
+            'version', 
+            'size', 
+            'created_at', 
+            'checksum'
+        ], [
+            'file_id' => $fileId, 
+            'ORDER' => ['version' => 'DESC'], 
+            'LIMIT' => [$offset, $limit]
+        ]) ?: [];
+
+        $total = (int)($this->db->count('file_versions', ['file_id' => $fileId]) ?: 0);
+
+        return ['rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit];
+    }
+
+    //dernier version d'un fichier => version courante
+    public function getCurrentVersionRow(int $fileId): array
+    {
+        return $this->db->get('file_versions', [
+            'id', 
+            'file_id',
+            'version',
+            'stored_name',
+            'size',
+            'created_at',
+            'checksum'
+        ], [
+            'file_id'   => $fileId,
+            'ORDER'     => ['version' => 'DESC']
+        ]) ?: null;
+    }
+
+    //version précise
+    public function getVersionRow(int $fileId, int $version): array
+    {
+        return $this->db->get('file_versions', [
+            'id', 
+            'file_id',
+            'version',
+            'stored_name',
+            'size',
+            'created_at',
+            'checksum'
+        ], [
+            'file_id'   => $fileId,
+            'version'   => $version
+        ]) ?: null;
+    }
+
+   
+
     // ======================= Folders ========================================
     
     public function listFolders(): array

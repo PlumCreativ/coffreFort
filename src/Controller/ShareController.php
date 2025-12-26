@@ -203,7 +203,7 @@ class ShareController{
                 $share['file_name'] = $file ?: 'Dossier supprime';
             }else{
                 $share['file_name'] = 'Inconnu';
-            }
+            } 
 
             //url publique reconstruite => pour afficher dans "mes partages"
             $token = (string)($share['token'] ?? '');
@@ -315,7 +315,11 @@ class ShareController{
 
         $shareId = (int)$share['id'];
 
-      
+        $params = $request->getQueryParams();
+        $requestedVersion = isset($params['v']) ? (int)$params['v'] : null;
+
+        $versionRow = null;
+
         try{
 
             if((int)$share['is_revoked'] === 1){
@@ -363,12 +367,37 @@ class ShareController{
                 return $this->json($response, ['error' => $message], 404);
             }
 
-            $path = $this->uploadDir . DIRECTORY_SEPARATOR . $file['stored_name'];
+            // choisir la version à servir
+            if($requestedVersion !== null && $requestedVersion > 0){
+
+                // actuellement c'est refusé
+                $message = 'Les versions figées (?v=) ne sont pas autorisées pour ce lien (pas encore implémenté)';
+                return $this->json($response, ['error' => $message], 403);
+
+                // OPTION FUTURE: autoriser seulement si le share le permet (à définir)
+                //..........
+                // if (!(bool)$share['allow_fixed_versions']) { ...403... }
+                // $versionRow = $this->files->getVersionRow($fileId, $requestedV);
+
+            } else {
+                $versionRow = $this->files->getCurrentVersionRow($fileId);
+            }
+
+            if(!$versionRow){
+                $message = 'Aucun version disponible pour ce fichier';
+                return $this->json($response, ['error' => $message], 404);
+            }
+
+            $versionId = (int)$versionRow['id'];
+            $storedName = (string)$versionRow['stored_name'];
+
+            $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
             if(!file_exists($path)){
                 $message = 'Fichier partage manquant sur le serveur';
                 return $this->json($response, ['error' => $message], 500);
             }
 
+            //stream
             $stream = fopen($path, 'rb');
             $body = $response->getBody();
             while(!feof($stream)){
@@ -388,7 +417,7 @@ class ShareController{
         }finally{
 
             //log le téléchargement
-            $this->logs->log($shareId, null, $ip, $userAgent, $success, $message);
+            $this->logs->log($shareId, $versionId, $ip, $userAgent, $success, $message);
         }
 
     }
