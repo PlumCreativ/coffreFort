@@ -73,6 +73,10 @@ $app->get('/s/{token}', [$shareController, 'publicShare']);
 ///shares/{token}/download
 $app->get('/s/{token}/download', [$shareController, 'publicDownload']);
 
+// PUT => renommage
+$app->put('/folders/{id}', [$fileController, 'renameFolder']);
+$app->put('/files/{id}', [$fileController, 'renameFile']);
+
 // Route d'accueil (GET /)
 $app->get('/', function ($request, $response) {
     $response->getBody()->write(json_encode([
@@ -105,6 +109,9 @@ $app->get('/', function ($request, $response) {
             'POST /shares/{id}/revoke',
             'GET /s/{token}',
             'GET /s/{token}/download',
+
+            'PUT /folders/{id}',
+            'PUT /files/{id}',
         ]
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');

@@ -259,7 +259,7 @@ class FileController
         }
 
 
-        $totalSize = $this->files->totalSize();
+        $totalSize = $this->files->totalSizeByUser($userId); //=> par utilisateur!!! 
         $quota = $this->files->userQuotaTotal($userId); //ancien quotaBytes
 
         if ($quota > 0 && ($totalSize + $size) > $quota) {
@@ -685,6 +685,151 @@ class FileController
         $response->getBody()->write(json_encode(['message' => 'Folder deleted']));
         // suppression réussi => statut: 204
         return $response->withHeader('Content-Type', 'application/json')->withStatus(204);
+    }
+
+
+    //PUT /folders/{id} => renommer un dossier
+    public function renameFolder(Request $request, Response $response, array $args): Response
+    {
+        // récuperer id via JWT
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            $code = (int)($e->getCode() ?: 401);
+            $response->getBody()->write(json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
+        }
+
+        $id = (int)($args['id'] ?? 0);
+        if($id <= 0){
+            $response->getBody()->write(json_encode(['error' => 'id invalide'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $folder = $this->files->findFolder($id);
+        if(!$folder){
+            $response->getBody()->write(json_encode(['error' => 'Dossier introuvable'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        //est-ce que le user est le propriètaire
+        if((int)$folder['user_id'] !== $userId){
+            $response->getBody()->write(json_encode(['error' => 'Acces interdit'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+        }
+
+        $body = $request->getParsedBody();
+        if(!is_array($body)) $body = [];
+
+        $newName = isset($body['name']) ? trim((string)$body['name']) : '';
+        if($newName === ''){
+            $response->getBody()->write(json_encode(['error' => 'Nom obligatoire'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // interdit quelques caractères => \,/,:,*,?,",<,>,|
+        if (preg_match('/[\\\\\\/\\:\\*\\?\\"\\<\\>\\|]/', $newName)) {
+            $response->getBody()->write(json_encode(['error' => 'Nom invalide (caracteres interdits)'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        //empêcher le doublon dans le même parent
+        $parentId = $folder['parent_id'] !== null ? (int)$folder['parent_id'] : null;
+        if($this->files->folderNameExistForUser($userId, $parentId, $newName, $id)){
+            $response->getBody()->write(json_encode(['error' => 'Un dossier avec ce nom existe deja ici'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+        }
+
+        $ok = $this->files->renameFolder($id, $newName);
+        if(!$ok){
+            $response->getBody()->write(json_encode(['error' => 'Renommage non applique...'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        $response->getBody()->write(json_encode([
+            'message' => 'Dossier renomme',
+            'id' => $id,
+            'name' => $newName
+        ], JSON_PRETTY_PRINT));
+
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+
+    }
+
+    //PUT /files/{id} => renommer un dossier
+    public function renameFile(Request $request, Response $response, array $args): Response
+    {
+        // récuperer id via JWT
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            $code = (int)($e->getCode() ?: 401);
+            $response->getBody()->write(json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
+        }
+
+        $id = (int)($args['id'] ?? 0);
+        if($id <= 0){
+            $response->getBody()->write(json_encode(['error' => 'id invalide'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $file = $this->files->find($id);
+        if(!$file){
+            $response->getBody()->write(json_encode(['error' => 'Fichier introuvable'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        //est-ce que le user est le propriètaire
+        if((int)$file['user_id'] !== $userId){
+            $response->getBody()->write(json_encode(['error' => 'Acces interdit'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+        }
+
+        $body = $request->getParsedBody();
+        if(!is_array($body)) $body = [];
+
+        $newName = isset($body['name']) ? trim((string)$body['name']) : '';
+        if($newName === ''){
+            $response->getBody()->write(json_encode(['error' => 'Nom obligatoire'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // interdit quelques caractères => \,/,:,*,?,",<,>,|
+        if (preg_match('/[\\\\\\/\\:\\*\\?\\"\\<\\>\\|]/', $newName)) {
+            $response->getBody()->write(json_encode(['error' => 'Nom invalide (caracteres interdits)'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        //empêcher le doublon dans le même dossier
+        $folderId = (int)$file['folder_id'];
+        if($this->files->fileNameExistForUser($userId, $folderId, $newName, $id)){
+            $response->getBody()->write(json_encode(['error' => 'Un fichier avec ce nom existe déjà ici'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+        }
+
+        $ok = $this->files->renameFile($id, $newName);
+        if(!$ok){
+            $response->getBody()->write(json_encode([
+                'error' => 'Aucun changement',
+                'id' => $id,
+                'original_name' => $newName
+            ], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+        }
+
+        $response->getBody()->write(json_encode([
+            'message' => 'Fichier renomme',
+            'id' => $id,
+            'original_name' => $newName
+        ], JSON_PRETTY_PRINT));
+
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+
     }
 
 

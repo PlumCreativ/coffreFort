@@ -45,14 +45,16 @@ class ShareRepository{
     public function revoke(int $id): void{
         $this->db->update('shares', [
             'is_revoked' => 1
-        ], ['id' => $id]);
+        ], [
+            'id'         => $id
+        ]);
         
     }
 
     //pas utilisé
     public function decrementRemainingUses(int $id):bool {
         $stmt = $this->db->update('shares',[
-            'remaining_uses[-]' => 1
+            'remaining_uses[-]'     => 1
         ], [
             'AND' => [
                 'id' => $id,
