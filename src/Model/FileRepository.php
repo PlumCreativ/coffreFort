@@ -31,8 +31,8 @@ class FileRepository
             'name',
             'created_at'
         ], [
-            'user_id' => $userId,
-            'ORDER' => ['name' => 'ASC']
+            'user_id'   => $userId,
+            'ORDER'     => ['name' => 'ASC']
         ]);
     }
 
@@ -88,9 +88,9 @@ class FileRepository
     public function updateUserQuota(int $userId, int $quotaTotal): void
     {
         $this->db->update('users', [
-            'quota_total' => $quotaTotal
+            'quota_total'   => $quotaTotal
         ], [
-            'id' => $userId
+            'id'            => $userId
         ]);
     }
 
@@ -100,7 +100,7 @@ class FileRepository
         $this->db->update('users', [
             'quota_used' => $quotaUsed
         ], [
-            'id' => $userId
+            'id'         => $userId
         ]);
     }
 
@@ -121,9 +121,9 @@ class FileRepository
     public function recentUploads(int $userId, int $limit = 20): array
     {
          return $this->db->select('files', '*', [
-            'user_id' => $userId,
-            'ORDER' => ['created_at' => 'DESC', 'id' => 'DESC'], 
-            'LIMIT' => $limit
+            'user_id'   => $userId,
+            'ORDER'     => ['created_at' => 'DESC', 'id' => 'DESC'], 
+            'LIMIT'     => $limit
         ]);
     }
 
@@ -134,9 +134,9 @@ class FileRepository
         // jointure utilisé par Medoo!!!!! => en SQL "FROM downloads_log AS dl
         // [>] => LEFT JOIN
         return $this->db->select('downloads_log (dl)', [
-            '[>]shares (s)' => ['dl.share_id' => 'id'],
+            '[>]shares (s)'         => ['dl.share_id' => 'id'],
             '[>]file_versions (fv)' => ['dl.version_id' => 'id'],
-            '[>]files (f)' => ['fv.file_id' => 'id']
+            '[>]files (f)'          => ['fv.file_id' => 'id']
         ], [ //les colonnes séléctionnés
             'dl.id (log_id)',
             'dl.share_id',
@@ -148,9 +148,41 @@ class FileRepository
             'f.original_name'
         ], [ //les conditions
             's.user_id' => $userId,
-            'ORDER' => ['dl.downloaded_at' => 'DESC', 'dl.id' => 'DESC'],
-            'LIMIT' => $limit
+            'ORDER'     => ['dl.downloaded_at' => 'DESC', 'dl.id' => 'DESC'],
+            'LIMIT'     => $limit
         ]);
+    }
+
+    public function renameFile(int $id, string $newName): bool
+    {
+        $count = $this->db->update('files', [
+            'original_name' => $newName
+        ], [
+            'id'            => $id
+        ])->rowCount();
+
+        //vérif => le nombre de ligne modifié
+        return $count > 0;
+    }
+
+    /**
+     * Vérifie si un fichier du même user, dans le même dossier, a déjà ce nom
+     * en excluant le fichier courant via $excludeId
+     */
+    public function fileNameExistForUser(int $userId, int $folderId, string $name, int $excludeId = 0): bool
+    {
+        $where = [
+            'user_id'       => $userId,
+            'folder_id'     => $folderId,
+            'original_name' => $name
+        ];
+
+        if($excludeId > 0){
+            $where['id[!]'] = $excludeId;  // =>AND id != :excludeId
+        }
+
+        $count = (int)$this->db->count('files', $where);
+        return $count > 0;
     }
 
 
@@ -184,20 +216,62 @@ class FileRepository
     }
 
 
+    public function renameFolder(int $id, string $newName): bool
+    {
+        $count = $this->db->update('folders', [
+            'name'  => $newName
+        ], [
+            'id'    => $id
+        ])->rowCount();
+
+        //vérif => le nombre de ligne modifié
+        return $count > 0;
+    }
+
+    /**
+     * vérification si un dossier du même user, même parent_id, a déjà ce nom
+     *  => en excluant le dossier en cours via $excludeId
+     * true => le nom n'est pas disponible, il y a déjà au moins 1 dossier avec les mêmes user, parent_id, nom
+     */
+    public function folderNameExistForUser(int $userId, ?int $parentId, string $name, int $excludeId = 0): bool
+    {
+        $where = [
+            'user_id'   => $userId,
+            'name'      => $name
+        ];
+
+        if($parentId === null){
+            $where['parent_id'] = null;
+        }else{
+            $where['parent_id'] = $parentId;
+        }
+
+        if($excludeId > 0){
+            $where['id[!]'] = $excludeId;  // =>AND id != :excludeId
+        }
+
+        $count = (int)$this->db->count('folders', $where);
+        return $count > 0;
+
+    }
+
+
      // ======================= pour le shares ========================================
 
-    public function isOwnedByUser(int $fileId, int $userId): bool{
+    public function isOwnedByUser(int $fileId, int $userId): bool
+    {
         $count = $this->db->count('files', [
-            'id' => $fileId, 
-            'user_id' => $userId
+            'id'        => $fileId, 
+            'user_id'   => $userId
         ]);
         return $count > 0;
     }
 
-    public function folderOwnedByUser(int $folderId, int $userId): bool{
-        $count = $this->db->count('files', [
-            'folder_id' => $folderId,
-            'user_id' => $userId
+    public function folderOwnedByUser(int $folderId, int $userId): bool
+    {
+        $count = $this->db->count('folders', [
+            'id'        => $folderId,
+            'user_id'   => $userId
         ]);
         return $count > 0;
     }

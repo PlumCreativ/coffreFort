@@ -44,7 +44,7 @@
                 </div>
 
                 <!-- message d’erreur => caché par défaut -->
-                <div id="error-box" class="my-1 mx-0 p-1 fw-bold">
+                <div id="error-box" class="my-3 mx-0 p-1 fw-bold text-center">
                 </div>
 
                 <div class="file-info fs-6">

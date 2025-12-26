@@ -85,7 +85,7 @@ class ShareController{
         if($targetId <= 0){
             return $this->json($response, ['error' => 'target_id invalide'], 400);
         }
-
+ 
         if($maxUses !== null && $maxUses < 1){
             return $this->json($response, ['error' => 'max_uses doit etre >= 1'], 400);
         }
@@ -96,7 +96,7 @@ class ShareController{
                 return $this->json($response, ['error' => "Vous n'êtes pas proprietaire de ce fichier"], 403);
             }
         }else{
-            if(!$this->files->folderOwnedByUser($targetId, $userId)){
+            if(!$this->files->folderOwnedByUser($targetId, $userId)){ //??????????????
                 return $this->json($response, ['error' => "Vous n'êtes pas proprietaire de ce dossier"], 403);
             }
         }
