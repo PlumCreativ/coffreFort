@@ -33,7 +33,7 @@ CREATE TABLE `files`(
     `stored_name` VARCHAR(150) NOT NULL, 
     `mime` VARCHAR(150) NOT NULL,
     `size` BIGINT NOT NULL,
-    `created_at` DATE NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_files_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT `fk_files_folder` FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
 );
@@ -42,14 +42,16 @@ DROP TABLE IF EXISTS `file_versions`;
 CREATE TABLE `file_versions`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `file_id` BIGINT UNSIGNED,
-    `version` VARCHAR(255) NOT NULL,
+    `version` INT UNSIGNED NOT NULL,
     `stored_name` VARCHAR(150) NOT NULL,
-    `id_last_version` BIGINT,
-    `checksum` MEDIUMINT NOT NULL,
+    `iv` VARBINARY(12) NOT NULL,
+    `auth_tag` VARBINARY(16) NOT NULL,
+    `key_envelope` BLOB NOT NULL,
+    `checksum` BINARY(32) NOT NULL,
+    `size` BIGINT UNSIGNED NOT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_file_versions_file` FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
     UNIQUE KEY `uniq_file_version` (file_id, version)
-    
 );
 
 DROP TABLE IF EXISTS `shares`;
@@ -92,3 +94,4 @@ CREATE INDEX idx_folders_user ON folders(user_id);
 CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
 CREATE INDEX idx_shares_token ON shares(token);
 CREATE INDEX idx_downloads_share ON downloads_log(share_id);
+CREATE INDEX idx_file_versions_created_at ON file_versions(created_at);

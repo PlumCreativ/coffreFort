@@ -64,22 +64,22 @@ class UserController
 
         // Créer l'utilisateur
         $userData = [
-            'email' => $body['email'],
-            'pass_hash' => password_hash($body['password'], PASSWORD_DEFAULT),
-            'quota_used' => 0,
+            'email'         => $body['email'],
+            'pass_hash'     => password_hash($body['password'], PASSWORD_DEFAULT),
+            'quota_used'    => 0,
             // 'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
-            'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
-            'is_admin' => $isAdmin,
-            'created_at' => date('Y-m-d')
+            'quota_total'   => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
+            'is_admin'      => $isAdmin,
+            'created_at'    => date('Y-m-d')
         ];
 
         $id = $this->users->create($userData);
 
         $response->getBody()->write(json_encode([
-            'message' => 'User created successfully',
-            'id' => $id,
-            'email' => $body['email'],
-            'is_admin' => $isAdmin
+            'message'   => 'User created successfully',
+            'id'        => $id,
+            'email'     => $body['email'],
+            'is_admin'  => $isAdmin
         ], JSON_PRETTY_PRINT));
 
         return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
@@ -129,13 +129,13 @@ class UserController
 
         // Génération du JWT
         $payload = [
-            'iss' => 'coffre-fort',          // émetteur
-            'aud' => 'coffre-fort-users',    // audience
-            'iat' => time(),                 // date d’émission
-            'exp' => time() + 3600,          // expiration (1h)
-            'user_id' => $user['id'],        // identifiant utilisateur
-            'email' => $user['email'],
-            'is_admin' => $user['is_admin']
+            'iss'       => 'coffre-fort',          // émetteur
+            'aud'       => 'coffre-fort-users',    // audience
+            'iat'       => time(),                 // date d’émission
+            'exp'       => time() + 3600,          // expiration (1h)
+            'user_id'   => $user['id'],        // identifiant utilisateur
+            'email'     => $user['email'],
+            'is_admin'  => $user['is_admin']
         ];
 
         $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
@@ -183,8 +183,8 @@ class UserController
 private function jsonError(Response $response, string $msg, int $code): Response
 {
     $response->getBody()->write(json_encode([
-        "success" => false,
-        "error" => $msg
+        "success"   => false,
+        "error"     => $msg
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
 }
@@ -222,9 +222,9 @@ public function dashboard(Request $request, Response $response)
 
     // OK → retourne les données nécessaires
     $response->getBody()->write(json_encode([
-        "success" => true,
-        "message" => "Bienvenue sur la page Main",
-        "email" => $jwt->email
+        "success"   => true,
+        "message"   => "Bienvenue sur la page Main",
+        "email"     => $jwt->email
     ]));
     
     return $response->withHeader("Content-Type", "application/json");

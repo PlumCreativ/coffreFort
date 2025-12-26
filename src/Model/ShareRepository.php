@@ -27,7 +27,6 @@ class ShareRepository{
             'is_revoked'        => 0
         ]);
 
-
         $id = (int)$this->db->id();
         return $this->findById($id);
     }
@@ -47,13 +46,12 @@ class ShareRepository{
             'is_revoked' => 1
         ], [
             'id'         => $id
-        ]);
-        
+        ]);  
     }
 
     //pas utilisé
     public function decrementRemainingUses(int $id):bool {
-        $stmt = $this->db->update('shares',[
+        $stmt = $this->db->update('shares',[ 
             'remaining_uses[-]'     => 1
         ], [
             'AND' => [
@@ -63,7 +61,6 @@ class ShareRepository{
         ]);
         return $stmt->rowCount() > 0;
     }
-
 
     public function consumeUse(int $shareId): bool {
 
@@ -78,6 +75,5 @@ class ShareRepository{
 
         return $count > 0;
     }
-
 
 }
