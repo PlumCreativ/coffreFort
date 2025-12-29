@@ -239,7 +239,7 @@ class FileRepository
             'id',
             'version', 
             'size', 
-            'created_at', 
+            'created_at',
             'checksum'
         ], [
             'file_id' => $fileId, 
@@ -253,21 +253,28 @@ class FileRepository
     }
 
     //dernier version d'un fichier => version courante
-    public function getCurrentVersionRow(int $fileId): array
+    public function getCurrentVersionRow(int $fileId): ?array
     {
-        return $this->db->get('file_versions', [
+        $row = $this->db->get('file_versions', [
             'id', 
             'file_id',
             'version',
             'stored_name',
             'size',
             'created_at',
+            'iv',
+            'auth_tag',
+            'key_envelope',
             'checksum'
         ], [
             'file_id'   => $fileId,
-            'ORDER'     => ['version' => 'DESC']
-        ]) ?: null;
+            'ORDER'     => ['version' => 'DESC'],
+            'LIMIT'     => 1
+        ]);
+
+        return $row ?: null;
     }
+    
 
     //version précise
     public function getVersionRow(int $fileId, int $version): array

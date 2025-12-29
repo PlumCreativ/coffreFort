@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
+
 class FileController
 {
     private Medoo $db; 
@@ -19,6 +20,7 @@ class FileController
     private AuthService $auth;
     private string $uploadDir;
     private string $jwtSecret;
+    private string $kek;
 
 
     // public function __construct(Medoo $db)
@@ -40,6 +42,12 @@ class FileController
         if ($this->jwtSecret === '') {
             // Tu peux aussi throw ici, mais je préfère debug clair
             error_log("JWT_SECRET manquant dans les variables d'environnement.");
+        }
+
+        $kekRow = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
+        $this->kek = trim($kekRow);
+        if ($this->kek === '' || strlen($this->kek) < 32) {
+            error_log("KEY_ENCRYPTION_KEY manquante/mauvaise (len=" . strlen($this->kek) . ")");
         }
     }
 
@@ -537,11 +545,22 @@ class FileController
         }
 
         // Enveloppe de clé (key_envelope) avec une clé maître serveur
-        $kek = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
-        if($kek === '' || strlen($kek) < 32){
-            $response->getBody()->write(json_encode(['error' => 'Server KEK missing/misconfigured'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
+        // $raw1 = $_ENV['KEY_ENCRYPTION_KEY'] ?? null;
+        // $raw2 = getenv('KEY_ENCRYPTION_KEY');
+       
+        // error_log("DEBUG KEK _ENV: " . ($raw1 === null ? 'null' : ('len=' . strlen($raw1))));
+        // error_log("DEBUG KEK getenv: " . ($raw2 === false ? 'false' : ('len=' . strlen($raw2))));
+
+        // $kek = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
+
+        $kek = $this->kek;
+        if ($kek === '' || strlen($kek) < 32) {
+        error_log("CRITICAL: KEK non disponible au moment de l'upload");
+        $response->getBody()->write(json_encode([
+            'error' => 'Server KEK missing/misconfigured'
+        ], JSON_PRETTY_PRINT));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+    }
 
         $kek = substr($kek, 0, 32);
 
@@ -603,10 +622,15 @@ class FileController
                 'created_at'    => date('Y-m-d H:i:s')
             ]);
 
+            $newOriginalName = $newFile->getClientFilename();
+            $newMime = $newFile->getClientMediaType();
             //faire pointer files vers la dernière version
             $this->files->updateFileMeta($fileId, [
                 'stored_name'   => $storedName,
                 'size'          => $size,
+                'mime'          => $newMime,
+                'original_name' => $newOriginalName,
+                'updated_at'    => date('Y-m-d H:i:s')
             ]);
 
             $this->db->pdo->commit();

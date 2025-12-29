@@ -294,7 +294,7 @@ class ShareController{
     //GET /s/{token}/download  =>téléchargement, journalisation et décrémentation atomique de remaining_uses.
     public function publicDownload(Request $request, Response $response, array $args):Response {
 
-        $token = (string)$args['token'];
+        $token = (string)($args['token'] ?? '');
         if($token === ''){
             return $this->json($response, ['error' => 'Token manquant'], 400);
         }
@@ -306,6 +306,9 @@ class ShareController{
         $message = null;
         $shareId = 0;
 
+        $versionId = null; // pas de versionnage en clair => on loggue NULL
+
+        //charger le share
         $share = $this->shares->findByToken($token);
         if($share === null || !$share){
             $message = 'Token de partage invalide';
@@ -315,8 +318,8 @@ class ShareController{
 
         $shareId = (int)$share['id'];
 
-        $params = $request->getQueryParams();
-        $requestedVersion = isset($params['v']) ? (int)$params['v'] : null;
+        // $params = $request->getQueryParams();
+        // $requestedVersion = isset($params['v']) ? (int)$params['v'] : null;
 
         $versionRow = null;
 
@@ -349,6 +352,180 @@ class ShareController{
                 return $this->json($response, ['error' => $message], 501);
             }
 
+            //télécharger le fichier
+            $fileId = (int)$share['target_id'];
+            $file = $this->files->find($fileId);
+            if(!$file){
+                $message = 'Fichier partage introuvable';
+                return $this->json($response, ['error' => $message], 404);
+            }
+
+            
+            // // choisir la version à servir
+            // if($requestedVersion !== null && $requestedVersion > 0){
+
+            //     // actuellement c'est refusé
+            //     $message = 'Les versions figées (?v=) ne sont pas autorisées pour ce lien (pas encore implémenté)';
+            //     return $this->json($response, ['error' => $message], 403);
+
+            //     // OPTION FUTURE: autoriser seulement si le share le permet (à définir)
+            //     //..........
+            //     // if (!(bool)$share['allow_fixed_versions']) { ...403... }
+            //     // $versionRow = $this->files->getVersionRow($fileId, $requestedV);
+
+            // } else {
+            //     $versionRow = $this->files->getCurrentVersionRow($fileId);
+            // }
+
+            $versionRow = $this->files->getCurrentVersionRow($fileId);
+
+            //Fichier CHIFFRÉ (a des versions dans file_versions)
+            if($versionRow !== null){
+                error_log("Download Chiffré pour file_id = $fileid (partage via token");
+
+                //version courante
+                $versionId = (int)$versionRow['id'];
+                $storedName = (string)$versionRow['stored_name'];
+
+                // $storedName = (string)($file['stored_name'] ?? '');
+                if($storedName === ''){
+                    $message = 'stored_name manquant en base';
+                    return $this->json($response, ['error' => $message], 500);
+                }
+
+                $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+                if(!file_exists($path)){
+                    $message = 'Fichier partage manquant sur le serveur';
+                    error_log("Fichier manquant: $path");
+                    return $this->json($response, ['error' => $message], 500);
+                }
+
+                //Lire le fichier chiffré
+                $ciphertext = file_get_contents($path);
+                if ($ciphertext === false) {
+                    $message = "Impossible de lire le fichier chiffre";
+                    return $this->json($response, ['error' => $message], 500);
+                }
+
+                // Charger KEK
+                $kekRaw = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
+                $kek = trim($kekRaw);
+                
+                if ($kek === '' || strlen($kek) < 32) {
+                    $message = 'KEK non configurée sur le serveur';
+                    error_log("KEK manquante ou invalide");
+                    return $this->json($response, ['error' => $message], 500);
+                }
+                
+                $kek = substr($kek, 0, 32);
+
+                // Extraire key_envelope (envIv || envTag || wrappedKey)
+                $keyEnvelope = $versionRow['key_envelope'];
+                
+                if (strlen($keyEnvelope) < 28) {
+                    $message = 'Key envelope invalide (trop court)';
+                    return $this->json($response, ['error' => $message], 500);
+                }
+                
+                $envIv = substr($keyEnvelope, 0, 12);
+                $envTag = substr($keyEnvelope, 12, 16);
+                $wrappedKey = substr($keyEnvelope, 28);
+
+                // Déchiffrer la clé du fichier
+                $fileKey = openssl_decrypt(
+                    $wrappedKey,
+                    'aes-256-gcm',
+                    $kek,
+                    OPENSSL_RAW_DATA,
+                    $envIv,
+                    $envTag,
+                    "",
+                    16
+                );
+
+                if ($fileKey === false) {
+                    $message = 'Impossible de dechiffrer la cle du fichier';
+                    error_log('openssl_decrypt fileKey failed: ' . openssl_error_string());
+                    return $this->json($response, ['error' => $message], 500);
+                }
+
+                // Déchiffrer le contenu
+                $iv = $versionRow['iv'];
+                $tag = $versionRow['auth_tag'];
+
+                $plaintext = openssl_decrypt(
+                    $ciphertext,
+                    'aes-256-gcm',
+                    $fileKey,
+                    OPENSSL_RAW_DATA,
+                    $iv,
+                    $tag,
+                    "",
+                    16
+                );
+
+                 if ($plaintext === false) {
+                    $message = 'Dechiffrement du contenu echoue';
+                    error_log('openssl_decrypt plaintext failed: ' . openssl_error_string());
+                    return $this->json($response, ['error' => $message], 500);
+                }
+
+                // Vérifier le checksum
+                $computedChecksum = hash('sha256', $ciphertext, true);
+                if (!hash_equals($versionRow['checksum'], $computedChecksum)) {
+                    error_log('AVERTISSEMENT : Checksum ne correspond pas pour file_id=' . $fileId);
+                }
+
+                //décrémentation atomique => 
+                // => garantit que le compteur de téléchargements ne peut jamais être contourné, même si 10 personnes cliquent en même temps.
+                if ($share['remaining_uses'] !== null) {
+                    $ok = $this->shares->consumeUse($shareId);
+                    if (!$ok) {
+                        $message = 'Nombre de telechargements atteint';
+                        return $this->json($response, ['error' => $message], 403);
+                    }
+                }
+
+                //stream
+                $stream = fopen($path, 'rb');
+                if ($stream === false) {
+                    $message = "Impossible d'ouvrir le fichier";
+                    return $this->json($response, ['error' => $message], 500);
+                }
+    
+    
+                $body = $response->getBody();
+                while(!feof($stream)){
+                    $body->write(fread($stream, 8192));
+                }
+                fclose($stream);
+    
+                $success = true;
+                $message = 'Telechargement reussi';
+    
+                return $response
+                    ->withHeader('Content-Type', $file['mime'])
+                    ->withHeader('Content-Disposition', 'attachment; filename="' . $file['original_name'] . '"')
+                    ->withHeader('Content-Length', (string)filesize($path))
+                    ->withStatus(200);
+            }
+
+            //Fichier EN CLAIR (ancien système, pas de file_versions)
+            error_log("Download En Clair pour file_id=$fileId (partage via token)");
+            
+            $storedName = (string)($file['stored_name'] ?? '');
+            if($storedName === ''){
+                $message = 'stored_name manquant dans files';
+                return $this->json($response, ['error' => $message], 500);
+            }
+
+            $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+            if(!file_exists($path)){
+                $message = 'Fichier en clair manquant sur le serveur';
+                error_log("Fichier manquant: $path");
+                return $this->json($response, ['error' => $message], 500);
+            }
+
             //décrémentation atomique => 
             // => garantit que le compteur de téléchargements ne peut jamais être contourné, même si 10 personnes cliquent en même temps.
             if ($share['remaining_uses'] !== null) {
@@ -359,46 +536,14 @@ class ShareController{
                 }
             }
 
-            //télécharger le fichier
-            $fileId = (int)$share['target_id'];
-            $file = $this->files->find($fileId);
-            if(!$file){
-                $message = 'Fichier partage introuvable';
-                return $this->json($response, ['error' => $message], 404);
-            }
-
-            // choisir la version à servir
-            if($requestedVersion !== null && $requestedVersion > 0){
-
-                // actuellement c'est refusé
-                $message = 'Les versions figées (?v=) ne sont pas autorisées pour ce lien (pas encore implémenté)';
-                return $this->json($response, ['error' => $message], 403);
-
-                // OPTION FUTURE: autoriser seulement si le share le permet (à définir)
-                //..........
-                // if (!(bool)$share['allow_fixed_versions']) { ...403... }
-                // $versionRow = $this->files->getVersionRow($fileId, $requestedV);
-
-            } else {
-                $versionRow = $this->files->getCurrentVersionRow($fileId);
-            }
-
-            if(!$versionRow){
-                $message = 'Aucun version disponible pour ce fichier';
-                return $this->json($response, ['error' => $message], 404);
-            }
-
-            $versionId = (int)$versionRow['id'];
-            $storedName = (string)$versionRow['stored_name'];
-
-            $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
-            if(!file_exists($path)){
-                $message = 'Fichier partage manquant sur le serveur';
+            //stream
+            $stream = fopen($path, 'rb');
+            if ($stream === false) {
+                $message = "Impossible d'ouvrir le fichier";
                 return $this->json($response, ['error' => $message], 500);
             }
 
-            //stream
-            $stream = fopen($path, 'rb');
+
             $body = $response->getBody();
             while(!feof($stream)){
                 $body->write(fread($stream, 8192));
@@ -413,9 +558,16 @@ class ShareController{
                 ->withHeader('Content-Disposition', 'attachment; filename="' . $file['original_name'] . '"')
                 ->withHeader('Content-Length', (string)filesize($path))
                 ->withStatus(200);
+        
+        }catch(\Exception $e){
+            error_log('Exception dans publicdownload: ' . $e->getMessage());
+            $message = 'Erreur serveur: ' . $e->getMessage();
+            return $this->json($response, ['error' => $message], 500);
 
         }finally{
-
+            if ($message === null) {
+                $message = $success ? 'Telechargement reussi' : 'Erreur inconnue';
+            }
             //log le téléchargement
             $this->logs->log($shareId, $versionId, $ip, $userAgent, $success, $message);
         }
