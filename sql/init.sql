@@ -1,8 +1,7 @@
 
-CREATE DATABASE IF NOT EXISTS `coffreFort` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE DATABASE `coffreFort` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `coffreFort`;
 
-DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `email` VARCHAR(255) NOT NULL UNIQUE,
@@ -13,7 +12,6 @@ CREATE TABLE `users` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-DROP TABLE IF EXISTS `folders`;
 CREATE TABLE `folders`(
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `user_id` BIGINT UNSIGNED,
@@ -24,7 +22,6 @@ CREATE TABLE `folders`(
     CONSTRAINT `fk_folders_parent` FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
 );
 
-DROP TABLE IF EXISTS `files`;
 CREATE TABLE `files`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `user_id` BIGINT UNSIGNED,
@@ -38,7 +35,6 @@ CREATE TABLE `files`(
     CONSTRAINT `fk_files_folder` FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
 );
 
-DROP TABLE IF EXISTS `file_versions`;
 CREATE TABLE `file_versions`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `file_id` BIGINT UNSIGNED,
@@ -52,7 +48,6 @@ CREATE TABLE `file_versions`(
     
 );
 
-DROP TABLE IF EXISTS `shares`;
 CREATE TABLE `shares` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT UNSIGNED NOT NULL,
@@ -68,7 +63,6 @@ CREATE TABLE `shares` (
   CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `share_id` INT UNSIGNED NOT NULL,
