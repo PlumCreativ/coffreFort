@@ -1,9 +1,8 @@
+-- Base de données créée automatiquement par Docker via MYSQL_DATABASE
+-- USE `coffreFort`;
 
-CREATE DATABASE `coffreFort` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-USE `coffreFort`;
-
-CREATE TABLE `users` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS `users` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `email` VARCHAR(255) NOT NULL UNIQUE,
   `pass_hash` VARCHAR(255) NOT NULL,
   `quota_total` BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -12,7 +11,7 @@ CREATE TABLE `users` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE `folders`(
+CREATE TABLE IF NOT EXISTS `folders`(
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `user_id` BIGINT UNSIGNED,
     `parent_id` BIGINT UNSIGNED,
@@ -22,7 +21,7 @@ CREATE TABLE `folders`(
     CONSTRAINT `fk_folders_parent` FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
 );
 
-CREATE TABLE `files`(
+CREATE TABLE IF NOT EXISTS `files`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `user_id` BIGINT UNSIGNED,
     `folder_id` BIGINT UNSIGNED,
@@ -35,7 +34,7 @@ CREATE TABLE `files`(
     CONSTRAINT `fk_files_folder` FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
 );
 
-CREATE TABLE `file_versions`(
+CREATE TABLE IF NOT EXISTS `file_versions`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `file_id` BIGINT UNSIGNED,
     `version` INT UNSIGNED NOT NULL,
@@ -50,31 +49,29 @@ CREATE TABLE `file_versions`(
     UNIQUE KEY `uniq_file_version` (file_id, version)
 );
 
-CREATE TABLE `shares` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `user_id` INT UNSIGNED NOT NULL,
+CREATE TABLE IF NOT EXISTS `shares` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` BIGINT UNSIGNED NOT NULL,
   `kind` ENUM('file', 'folder') NOT NULL,
-  `target_id` INT UNSIGNED NOT NULL,
+  `target_id` BIGINT UNSIGNED NOT NULL,
   `token` CHAR(64) NOT NULL UNIQUE,
+  `token_sig` CHAR(64) NOT NULL,
   `label` VARCHAR(255) NULL,
   `expires_at` DATETIME NULL,
   `max_uses` INT UNSIGNED NULL,
   `remaining_uses` INT UNSIGNED NULL,
   `is_revoked` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_shares_token (token)
 );
-
--- à voir s'il faut car pour l'instant ok 
-ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
-CREATE INDEX idx_shares_token ON shares(token);
 
 
 DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `share_id` INT UNSIGNED NOT NULL,
-  `version_id` INT UNSIGNED NULL,
+  `share_id` BIGINT UNSIGNED NOT NULL,
+  `version_id` BIGINT UNSIGNED NULL,
   `downloaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `ip` VARCHAR(45) NOT NULL,
   `user_agent` VARCHAR(255) NOT NULL,
@@ -84,9 +81,8 @@ CREATE TABLE `downloads_log` (
   CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
 
--- Index utiles =????
+-- Index utiles
 CREATE INDEX idx_folders_user ON folders(user_id);
 CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
-CREATE INDEX idx_shares_token ON shares(token);
 CREATE INDEX idx_downloads_share ON downloads_log(share_id);
 CREATE INDEX idx_file_versions_created_at ON file_versions(created_at);
