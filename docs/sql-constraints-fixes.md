@@ -11,8 +11,8 @@ Les types de données entre les colonnes de clés étrangères et les colonnes r
 
 **Problèmes spécifiques:**
 - `users.id` était `INT UNSIGNED` alors que `folders.user_id` et `files.user_id` étaient `BIGINT UNSIGNED`
-- `shares.id` était `INT UNSIGNED` alors que `downloads_log.share_id` devrait être du même type
-- `shares.target_id` était `INT UNSIGNED` mais devait référencer des IDs de `files` et `folders` qui sont `BIGINT UNSIGNED`
+- `shares.id` était `INT UNSIGNED` alors que `downloads_log.share_id` doit être du même type
+- `shares.target_id` était `INT UNSIGNED` mais doit référencer des IDs de `files` et `folders` qui sont `BIGINT UNSIGNED`
 - `file_versions.id` était `BIGINT UNSIGNED` mais `downloads_log.version_id` était `INT UNSIGNED`
 
 ### 2. Index dupliqué

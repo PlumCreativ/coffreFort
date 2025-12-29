@@ -94,6 +94,7 @@ docker-compose down -v
 docker-compose up -d
 
 # Vérifier que la base de données est créée correctement
+# Note: Utilisez -p sans valeur pour saisir le mot de passe de manière sécurisée
 docker-compose exec mysql mysql -u coffreFort -p coffreFort -e "SHOW TABLES;"
 ```
 
@@ -101,6 +102,7 @@ docker-compose exec mysql mysql -u coffreFort -p coffreFort -e "SHOW TABLES;"
 
 ```bash
 # Afficher les contraintes de clés étrangères
+# Note: Utilisez -p sans valeur pour saisir le mot de passe de manière sécurisée
 docker-compose exec mysql mysql -u coffreFort -p coffreFort -e "
 SELECT 
     CONSTRAINT_NAME,
