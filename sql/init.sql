@@ -30,7 +30,7 @@ CREATE TABLE `files`(
     `stored_name` VARCHAR(150) NOT NULL, 
     `mime` VARCHAR(150) NOT NULL,
     `size` BIGINT NOT NULL,
-    `created_at` DATE NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_files_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT `fk_files_folder` FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
 );
@@ -38,14 +38,16 @@ CREATE TABLE `files`(
 CREATE TABLE `file_versions`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     `file_id` BIGINT UNSIGNED,
-    `version` VARCHAR(255) NOT NULL,
+    `version` INT UNSIGNED NOT NULL,
     `stored_name` VARCHAR(150) NOT NULL,
-    `id_last_version` BIGINT,
-    `checksum` MEDIUMINT NOT NULL,
+    `iv` VARBINARY(12) NOT NULL,
+    `auth_tag` VARBINARY(16) NOT NULL,
+    `key_envelope` BLOB NOT NULL,
+    `checksum` BINARY(32) NOT NULL,
+    `size` BIGINT UNSIGNED NOT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT `fk_file_versions_file` FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
     UNIQUE KEY `uniq_file_version` (file_id, version)
-    
 );
 
 CREATE TABLE `shares` (
@@ -63,6 +65,12 @@ CREATE TABLE `shares` (
   CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- à voir s'il faut car pour l'instant ok 
+ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
+CREATE INDEX idx_shares_token ON shares(token);
+
+
+DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `share_id` INT UNSIGNED NOT NULL,
@@ -71,6 +79,7 @@ CREATE TABLE `downloads_log` (
   `ip` VARCHAR(45) NOT NULL,
   `user_agent` VARCHAR(255) NOT NULL,
   `success` TINYINT(1) NOT NULL,
+  `message` VARCHAR(255) NULL,
   CONSTRAINT `fk_downloads_share` FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
   CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
@@ -80,3 +89,4 @@ CREATE INDEX idx_folders_user ON folders(user_id);
 CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
 CREATE INDEX idx_shares_token ON shares(token);
 CREATE INDEX idx_downloads_share ON downloads_log(share_id);
+CREATE INDEX idx_file_versions_created_at ON file_versions(created_at);
