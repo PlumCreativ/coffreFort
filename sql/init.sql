@@ -14,7 +14,7 @@ CREATE TABLE `users` (
 
 CREATE TABLE `folders`(
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    `user_id` BIGINT UNSIGNED,
+    `user_id` INT UNSIGNED NOT NULL,
     `parent_id` BIGINT UNSIGNED,
     `name` VARCHAR(255) NOT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -24,7 +24,7 @@ CREATE TABLE `folders`(
 
 CREATE TABLE `files`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `user_id` BIGINT UNSIGNED,
+    `user_id` INT UNSIGNED NOT NULL,
     `folder_id` BIGINT UNSIGNED,
     `original_name` VARCHAR(50) NOT NULL,
     `stored_name` VARCHAR(150) NOT NULL, 
@@ -37,7 +37,7 @@ CREATE TABLE `files`(
 
 CREATE TABLE `file_versions`(
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `file_id` BIGINT UNSIGNED,
+    `file_id` BIGINT UNSIGNED NOT NULL,
     `version` INT UNSIGNED NOT NULL,
     `stored_name` VARCHAR(150) NOT NULL,
     `iv` VARBINARY(12) NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE `shares` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT UNSIGNED NOT NULL,
   `kind` ENUM('file', 'folder') NOT NULL,
-  `target_id` INT UNSIGNED NOT NULL,
+  `target_id` BIGINT UNSIGNED NOT NULL,
   `token` CHAR(64) NOT NULL UNIQUE,
   `label` VARCHAR(255) NULL,
   `expires_at` DATETIME NULL,
@@ -67,14 +67,13 @@ CREATE TABLE `shares` (
 
 -- à voir s'il faut car pour l'instant ok 
 ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
-CREATE INDEX idx_shares_token ON shares(token);
 
 
 DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `share_id` INT UNSIGNED NOT NULL,
-  `version_id` INT UNSIGNED NULL,
+  `version_id` BIGINT UNSIGNED NULL,
   `downloaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `ip` VARCHAR(45) NOT NULL,
   `user_agent` VARCHAR(255) NOT NULL,
