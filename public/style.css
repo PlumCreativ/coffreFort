@@ -60,13 +60,15 @@ body {
 
 .file-icon {
     display: flex;
-    justify-content: left;
+    justify-content: center;
     margin-bottom: 20px;
 }
 
+/************** share.php *******************/
 .file-content h3 {
     margin: 0;
     font-size: 20px;
+    color: #980b0b !important;
 }
 
 .file-content p {
@@ -76,10 +78,10 @@ body {
 
 .file-info {
     border-top: 1px solid #ececec;
-    margin-top: 15px;
-    padding-top: 10px;
+    /* margin-top: 15px;
+    padding-top: 10px; */
     color: #555;
-    font-size: 14px;
+    /* font-size: 14px; */
 }
 
 .file-actions {
@@ -100,6 +102,23 @@ body {
 
 .btn-link:hover {
     text-decoration: underline;
+}
+
+#img-download{
+    width: 10em;
+    height: 10em;
+}
+
+#error-box{
+    display: none;
+    border-radius: 6px; 
+    background: #ffe5e5; 
+    color: #980b0b;
+}
+
+#img-logo{
+    width: 120px;
+    height: 120px;
 }
 
 /* Files header */

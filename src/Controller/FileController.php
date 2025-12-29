@@ -521,10 +521,11 @@ class FileController
                 ])));
         }
 
-        $limit = (int)($request->getQueryParams()['limit'] ?? 20);
+        $limit = min(100, (int)($request->getQueryParams()['limit'] ?? 20));
+        $offset = max(0, (int)($request->getQueryParams()['offset'] ?? 0));
 
         $uploads = $this->files->recentUploads($userId, $limit);
-        $downloads = $this->files->recentDownloads($userId, $limit);
+        $downloads = $this->files->recentDownloads($userId, $limit, $offset);
 
         // Normaliser les events dans un même format
         $events = [];
@@ -551,6 +552,7 @@ class FileController
                 'ip' => $download['ip'],
                 'user_agent' => $download['user_agent'],
                 'success' => (bool)$download['success'],
+                'message' => $download['message'] ?? null
             ];
         }
 
