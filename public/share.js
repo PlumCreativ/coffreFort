@@ -101,16 +101,54 @@ fetch(metaurl)
                 e.preventDefault();
 
                 //reset UI error
-                hide("#error-box");
+                const box = document.querySelector("#error-box");
+                if (box) {
+                    box.textContent = "";
+                    box.style.display = "none";
+                }
 
                 try{
-                    const response = await fetch(downloadUrl);
+                    const response = await fetch(downloadUrl, {
 
-                    // si erreur...
+                        //pour le redirection ou proxies au cas ou
+                        redirect : "follow", 
+                        cache: "no-store"
+                    });
+
+                    // si erreur...  => lire json erreur ou texte
                     if(!response.ok){
-                        const data = await response.json().catch(() => ({}));
-                        throw new Error(data.error || "Fichier non disponible sur le site");
+                        let message = `HTTP ${response.status}`;
+                        const ct = response.headers.get("Content-Type") || "";
+
+                        if(ct.includes("application/json")){
+                            const data = await response.json().catch(() => ({}));
+                            message = data.error || message;
+                        } else{
+                            const text = await response.text().catch(() => "");
+                            if (text){
+                                message = text.slice(0, 200);
+                            }
+                        }
+                        throw new Error(message);
                     }
+
+                    //vérification si c'est un fichier et non une page HTML/JSON
+                    const contentType = (response.headers.get("Content-Type") || "").toLowerCase();
+
+                    if(contentType.includes("application/json") || contentType.includes("text/html")){
+
+                        const txt = await response.text().catch(() => "");
+                        throw new Error(
+                            "Le serveur n'a pas renvoyé le fichier (réponse: " +
+                            (txt ? txt.slice(0, 160) : contentType) +
+                            ")"
+                        );
+                    } 
+
+                    console.log("DOWNLOAD status", response.status);
+                    console.log("DOWNLOAD content-type", response.headers.get("Content-Type"));
+                    console.log("DOWNLOAD content-length", response.headers.get("Content-Length"));
+                    console.log("DOWNLOAD disposition", response.headers.get("Content-Disposition"));
 
                     //ok
                     //transforme le contenu reçu (PDF, image, zip, etc.) en Blob 
@@ -119,11 +157,16 @@ fetch(metaurl)
                     const blob = await response.blob();
 
                     // essayer de récupérer le nom de fichier depuis Content-Disposition
-                    const cd = response.headers.get("Content-Disposition") || "";
                     let filename = (file && file.original_name) ? file.original_name : "download";
-                    const mot = /filename="([^"]+)"/.exec(cd);
-                    if(mot && mot[1]){ // filename="Poupee.pdf"
-                        filename = mot[1];  //Poupee.pdf
+                    
+                    const cd = response.headers.get("Content-Disposition") || "";
+                    const mStar = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(cd);
+                    const m = /filename\s*=\s*"([^"]+)"/i.exec(cd) || /filename\s*=\s*([^;]+)/i.exec(cd);
+                    
+                    if(mStar && mStar[1]){ // filename="Poupee.pdf"
+                        filename = decodeURIComponent(mStar[1]);  //Poupee.pdf
+                    }else if (m && m[1]){
+                        filename = m[1].trim().replace(/^"(.*)"$/, "$1");
                     }
 
                     const url = window.URL.createObjectURL(blob);
@@ -135,16 +178,21 @@ fetch(metaurl)
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
-                    window.URL.revokeObjectURL(url);
+                    //window.URL.revokeObjectURL(url);
+
+                    // pour éviter le revoke trop vite (sinon certains navigateurs tronquent) ????
+                    setTimeout(() => window.URL.revokeObjectURL(url), 2000);
 
                 }catch(err){
+                     const msg = (err && err.message) ? err.message : "Erreur inconnue";
 
                     //afficher pour utilisateur
-                    const box = document.querySelector("error-box");
+                    const box = document.querySelector("#error-box");
                     if(box){
-                         box.textContent = err.message;
+                        box.textContent = msg;
                         box.style.display = "block";
                     }
+                    console.error(err)
                 }
             });
 

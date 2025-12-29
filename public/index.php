@@ -39,6 +39,7 @@ $app->get('/files', [$fileController, 'list']);
 $app->get('/filesPaginated', [$fileController, 'listPaginated']);
 $app->get('/files/{id}', [$fileController, 'show']);
 $app->get('/files/{id}/download', [$fileController, 'download']);
+
 $app->post('/files', [$fileController, 'upload']);
 $app->delete('/files/{id}', [$fileController, 'delete']);
 $app->put('/files/{id}', [$fileController, 'renameFile']);  //renommage
