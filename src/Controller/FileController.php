@@ -363,14 +363,28 @@ class FileController
     // GET /stats
     public function stats(Request $request, Response $response): Response
     {
-        $userId = 1; 
-        $totalSize = $this->files->totalSize();
+
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(401)
+                ->withBody($response->getBody()->write(json_encode([
+                    'error' => $e->getMessage()
+                ])));
+        }
+
+
+        $totalSize = $this->files->totalSizeByUser($userId);
         $quota = $this->files->userQuotaTotal($userId); //ancien quotaBytes
 
-        // Exercice 1: utiliser countFiles() ici si l'étudiant l’a codée
-        $count = $this->files->countFiles();
+        $count = $this->files->countFilesByUser($userId);
 
         $data = [
+            'user_id'          => $userId,
             'total_size_bytes' => $totalSize,
             'quota_bytes'      => $quota,
             'file_count'       => $count,
@@ -384,6 +398,23 @@ class FileController
 // PUT /quota - Met à jour le quota d'un utilisateur
     public function setQuota(Request $request, Response $response): Response
     {
+
+        try {
+            $admin = $this->auth->getAuthenticatedUserFromToken($request);
+            
+            if(!$admin['is_admin']){
+                throw new \Exception("Accès interdit", 403);
+            }
+
+        } catch (\Exception $e) {
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus($e->getCode() ?:401)
+                ->withBody($response->getBody()->write(json_encode([
+                    'error' => $e->getMessage()
+                ])));
+        }
+
         $body = $request->getParsedBody();
 
         // Validation du champ quota_total
@@ -392,6 +423,7 @@ class FileController
             $response->getBody()->write(json_encode($error, JSON_PRETTY_PRINT));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+
 
         // Validation que c'est un nombre positif
         $bytes = (int)$body['quota_total'];
@@ -402,7 +434,7 @@ class FileController
         }
 
         // ID de l'utilisateur => à remplacer par l'utilisateur connecté
-        $userId = isset($body['user_id']) ? (int)$body['user_id'] : 1;
+        $userId = (int)$body['user_id'];
 
         // Vérifier que l'utilisateur existe
         $user = $this->files->getUser($userId);
@@ -435,7 +467,18 @@ class FileController
     public function meQuota(Request $request, Response $response): Response
     {
         // récuperer id via JWT
-        $userId = 1;
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(401)
+                ->withBody($response->getBody()->write(json_encode([
+                    'error' => $e->getMessage()
+                ])));
+        }
 
         // utilisé => somme des fichiers du user
         $usedBytes = $this->files->totalSizeByUser($userId);
@@ -465,7 +508,18 @@ class FileController
     public function meActivity(Request $request, Response $response): Response
     {
         // récuperer id via JWT
-        $userId = 1;
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(401)
+                ->withBody($response->getBody()->write(json_encode([
+                    'error' => $e->getMessage()
+                ])));
+        }
 
         $limit = (int)($request->getQueryParams()['limit'] ?? 20);
 

@@ -62,13 +62,17 @@ class UserController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
         }
 
+        $isFirstUser = ($this->users->countUsers() === 0);
+        $isAdmin = $isFirstUser; //=> true pour le premier utilisateur
+
         // Créer l'utilisateur
         $userData = [
             'email' => $email,
             'pass_hash' => password_hash($password, PASSWORD_DEFAULT),
             'quota_used' => 0,
-            'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
-            'is_admin' => isset($body['is_admin']) ? (bool)$body['is_admin'] : false,
+            // 'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
+            'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
+            'is_admin' => $isAdmin,
             'created_at' => date('Y-m-d')
         ];
     
@@ -92,7 +96,8 @@ class UserController
         $response->getBody()->write(json_encode([
             'message' => 'User created successfully',
             'id' => $id,
-            'email' => $body['email']
+            'email' => $body['email'],
+            'is_admin' => $isAdmin
         ], JSON_PRETTY_PRINT));
 
         return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
