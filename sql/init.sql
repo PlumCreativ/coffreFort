@@ -65,7 +65,7 @@ CREATE TABLE `shares` (
   CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- à voir s'il faut car pour l'instant ok 
+-- TODO: evaluate if token_sig column is needed 
 ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
 
 
@@ -83,7 +83,7 @@ CREATE TABLE `downloads_log` (
   CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
 
--- Index utiles =????
+-- Useful indexes
 CREATE INDEX idx_folders_user ON folders(user_id);
 CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
 CREATE INDEX idx_shares_token ON shares(token);
