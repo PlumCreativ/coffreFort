@@ -4,7 +4,7 @@ USE `coffreFort`;
 
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `email` VARCHAR(255) NOT NULL UNIQUE,
   `pass_hash` VARCHAR(255) NOT NULL,
   `quota_total` BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -58,10 +58,10 @@ CREATE TABLE `file_versions`(
 
 DROP TABLE IF EXISTS `shares`;
 CREATE TABLE `shares` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `user_id` INT UNSIGNED NOT NULL,
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` BIGINT UNSIGNED NOT NULL,
   `kind` ENUM('file', 'folder') NOT NULL,
-  `target_id` INT UNSIGNED NOT NULL,
+  `target_id` BIGINT UNSIGNED NOT NULL,
   `token` CHAR(64) NOT NULL UNIQUE,
   `label` VARCHAR(255) NULL,
   `expires_at` DATETIME NULL,
@@ -69,6 +69,7 @@ CREATE TABLE `shares` (
   `remaining_uses` INT UNSIGNED NULL,
   `is_revoked` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `allow_fixed_versions` TINYINT(1) NOT NULL DEFAULT 0,
   CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -80,8 +81,8 @@ CREATE INDEX idx_shares_token ON shares(token);
 DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `share_id` INT UNSIGNED NOT NULL,
-  `version_id` INT UNSIGNED NULL,
+  `share_id` BIGINT UNSIGNED NOT NULL,
+  `version_id` BIGINT UNSIGNED NULL,
   `downloaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `ip` VARCHAR(45) NOT NULL,
   `user_agent` VARCHAR(255) NOT NULL,

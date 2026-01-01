@@ -6,6 +6,8 @@ namespace App\Controller;
 use App\Model\FileRepository;
 use App\Model\UserRepository;
 use App\Security\AuthService;
+use App\Security\FileCrypto;
+use App\Security\StorageWriter;
 use Medoo\Medoo;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -50,54 +52,6 @@ class FileController
             error_log("KEY_ENCRYPTION_KEY manquante/mauvaise (len=" . strlen($this->kek) . ")");
         }
     }
-
-
-    // /** HELPER
-    //  * Récupère l'utilisateur authentifié à partir du header Authorization: Bearer <jwt>.
-    //  * 
-    //  * @throws \Exception avec code HTTP (401, 404, ...) en cas de problème.
-    //  */ => j'ai mis dans authservice.php => à supprimer si ça marche !!!!!!
-    // private function getAuthenticatedUserFromToken(Request $request): array
-    // {
-    //     // 1) Récupérer le header Authorization
-    //     $authHeader = $request->getHeaderLine('Authorization');
-    //     if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
-    //         throw new \Exception('Token manquant', 401);
-    //     }
-
-    //     $jwt = substr($authHeader, 7); // enlever "Bearer "
-
-    //     // 2) Vérifier le secret
-    //     if (empty($this->jwtSecret)) {
-    //         throw new \Exception('JWT secret non configuré sur le serveur.', 500);
-    //     }
-
-    //     // 3) Décoder le token
-    //     try {
-    //         $decoded = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
-    //     } catch (\Exception $e) {
-    //         throw new \Exception('Token invalide: ' . $e->getMessage(), 401);
-    //     }
-
-    //     $email = $decoded->email ?? null;
-    //     error_log("EMAIL DU TOKEN = " . ($email ?? 'NULL'));
-
-    //     if (!$email) {
-    //         throw new \Exception('Email manquant dans le token', 401);
-    //     }
-
-    //     // 4) Récupérer l'utilisateur
-    //     $userRepo = new \App\Model\UserRepository($this->db);
-    //     $user = $userRepo->findByEmail($email);
-
-    //     if (!$user) {
-    //         throw new \Exception('Utilisateur introuvable', 404);
-    //     }
-
-    //     // OK
-    //     return $user; // ex: ['id' => ..., 'email' => ...]
-    // }
-
 
 
     // GET /files ou GET /files?folder={id}
@@ -314,7 +268,7 @@ class FileController
         $maxSize = 10 * 1024 * 1024; // 10 Mo
         $allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/doc', 'application/docx', 'application/pdf'];
         
-        $size = $file->getSize();
+        $size = (int)$file->getSize();
         $mimeType = $file->getClientMediaType();
         
         // Vérification de la taille
@@ -362,34 +316,102 @@ class FileController
         }
 
         $originalName = $file->getClientFilename();
-        $storedName = uniqid('f_', true) . '_' . $originalName;
+        // $storedName = uniqid('f_', true) . '_' . $originalName;
 
-        // Créer le répertoire s'il n'existe pas
-        if (!is_dir($this->uploadDir)) {
-            mkdir($this->uploadDir, 0777, true);
+        // // Créer le répertoire s'il n'existe pas
+        // if (!is_dir($this->uploadDir)) {
+        //     mkdir($this->uploadDir, 0777, true);
+        // }
+
+        // $file->moveTo($this->uploadDir . DIRECTORY_SEPARATOR . $storedName);
+
+        //lire le tmp
+        $tmpPath = $file->getStream()->getMetaData('uri');
+        $plain = @file_get_contents($tmpPath);
+        if($plain === false){
+            $response->getBody()->write(json_encode(['error' => 'Impossible de lire le fichier téléchargé'], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
 
-        $file->moveTo($this->uploadDir . DIRECTORY_SEPARATOR . $storedName);
+        try {
+            $this->db->pdo->beginTransaction();
 
-        $id = $this->files->create([
-            'user_id'       => $userId,               
-            'folder_id'     => $folderId,               //récuperer le bon folder_id!!! 
-            'original_name' => $originalName,
-            'stored_name'   => $storedName,
-            'mime'          => $mimeType,
-            'size'          => $size,
-            'created_at'    => date('Y-m-d H:i:s') // => pour mettre l'heure, minutes..
-        ]);
+            // créer l'entrée files
+            $fileId = $this->files->create([
+                'user_id'       => $userId,               
+                'folder_id'     => $folderId,               //récuperer le bon folder_id!!! 
+                'original_name' => $originalName,
+                // 'stored_name'   => $storedName,             //pointe vers la version courante
+                'stored_name'   => 'PENDING',             //pointe vers la version courante
+                'mime'          => $mimeType,
+                'size'          => $size,
+                'created_at'    => date('Y-m-d H:i:s'), // => pour mettre l'heure, minutes..
+                'updated_at'    => date('Y-m-d H:i:s'),
+            ]);
 
-        $response->getBody()->write(json_encode([
-            'message'       => 'File uploaded successfully',
-            'id'            => $id, 
-            'filename'      => $originalName,
-            'stored_name'   => $storedName,
-            'size'          => $size
-        ], JSON_PRETTY_PRINT));
+            $version = 1;
+            $aadContent = "file:$fileId:v$version";
+            $aadKey     = "filekey:$fileId:v$version";
 
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
+            $crypto = FileCrypto::encryptForStorage($plain, $this->kek, $aadContent, $aadKey);
+
+            StorageWriter::ensureDir($this->uploadDir);
+
+            //stocké chiffré
+            $storedName = uniqid('f_', true) . '_' . '_file_$fileId.bin';
+            $outPath = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+
+            StorageWriter::writeBinary($outPath, $crypto['ciphertext']);
+
+            // créer la version 1
+            $versionId = $this->files->createFileVersion([
+                'file_id'       => $fileId,
+                'version'       => 1,
+                'stored_name'   => $storedName,
+                'iv'            => $crypto['iv'],
+                'auth_tag'      => $crypto['tag'],
+                'key_envelope'  => $crypto['key_envelope'],
+                'checksum'      => $crypto['checksum'],
+                'size'          => $size,
+                'created_at'    => date('Y-m-d H:i:s'),
+            ]);
+
+
+            $this->files->updateFileMeta($fileId, [
+                'stored_name' => $storedName,
+                'updated_at'  => date('Y-m-d H:i:s'),
+            ]);
+
+            $this->db->pdo->commit();
+
+             $response->getBody()->write(json_encode([
+                'message'       => 'File uploaded successfully (encrypted)',
+                'id'            => $fileId,
+                'version_id'    => $versionId,
+                'version'       => 1,
+                'filename'      => $originalName,
+                'stored_name'   => $storedName,
+                'size'          => $size
+            ], JSON_PRETTY_PRINT));
+
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
+            
+        }catch (\Throwable $e){
+            if($this->db->pdo->inTransaction()){
+                $this->db->pdo->rollBack();
+            }
+
+            //cleanup fichier disque si Database fail
+            if(isset($outPath) && file_exists($outPath)){
+                @unlink($outPath);
+            }
+
+            $response->getBody()->write(json_encode([
+                'error' => 'Database error',
+                'details' => $e->getMessage(),
+            ], JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
     }
 
 
@@ -428,6 +450,150 @@ class FileController
             ->withStatus(200);
     }
 
+     // GET /files/{id}/versions/{version}/download
+     public function downloadVersion(Request $request, Response $response, array $args): Response
+     {
+        $fileId = (int)($args['id'] ?? 0);
+        $version = (int)($args['version'] ?? 0);
+
+        if($fileId <= 0 || $version <= 0){
+            return $this->json($response, ['error' => 'Paramètres invalides'], 400);
+        }
+
+        //vérif authentification
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            return $this->json($response, [
+                    'error' => $e->getMessage()
+                ], 401);
+        }
+
+        if(!$this->files->isOwnedByUser($fileId, $userId)){
+            return $this->json($response, ['error' => "Acces refuse"], 403);
+        }
+
+        $file = $this->files->find($fileId);
+        if(!$file){
+            return $this->json($response, ['error' => "Fichier introuvable"], 404);
+        }
+
+        $versionRow = $this->files->getVersionRow($fileId, $version);
+        if(!$versionRow){
+            return $this->json($response, ['error' => "Version demandee introuvable"], 404);
+        }
+
+        $storedName = (string)($versionRow['stored_name'] ?? '');
+        if($storedName === ''){
+            return $this->json($response, ['error' => "stored_name manquant"], 500);
+        }
+
+        $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+        if(!file_exists($path)){
+            return $this->json($response, ['error' => 'Fichier manquant sur le serveur'], 500);
+        }
+
+        //Lire le fichier chiffré
+        $ciphertext = file_get_contents($path);
+        if ($ciphertext === false) {
+            return $this->json($response, ['error' => "Impossible de lire le fichier chiffre"], 500);
+        }
+
+        // Charger KEK (32 bytes)
+        $kekRaw = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
+        $kek = trim($kekRaw);
+        
+        if ($kek === '' || strlen($kek) < 32) {
+            return $this->json($response, ['error' => 'KEK non configurée sur le serveur'], 500);
+        }
+        
+        $kek = substr($kek, 0, 32);
+
+        // Extraire key_envelope (envIv || envTag || wrappedKey)
+        $keyEnvelope = $versionRow['key_envelope'];
+        
+        if (!is_string($keyEnvelope) || strlen($keyEnvelope) < 28) {
+            $message = 'Key envelope invalide (trop court)';
+            return $this->json($response, ['error' => $message], 500);
+        }
+        
+        $envIv = substr($keyEnvelope, 0, 12);
+        $envTag = substr($keyEnvelope, 12, 16);
+        $wrappedKey = substr($keyEnvelope, 28);
+
+        // Déchiffrer la clé du fichier
+        $fileKey = openssl_decrypt(
+            $wrappedKey,
+            'aes-256-gcm',
+            $kek,
+            OPENSSL_RAW_DATA,
+            $envIv,
+            $envTag,
+            ""
+            // 16
+        );
+
+        if ($fileKey === false) {
+            $message = 'Impossible de dechiffrer la cle du fichier';
+            error_log('openssl_decrypt fileKey failed: ' . openssl_error_string());
+            return $this->json($response, ['error' => $message], 500);
+        }
+
+        // Déchiffrer le contenu
+        $iv = $versionRow['iv'];
+        $tag = $versionRow['auth_tag'];
+
+        if (!is_string($iv) || strlen($iv) < 12) {
+        return $this->json($response, ['error' => 'IV invalide'], 500);
+        }
+        if (!is_string($tag) || strlen($tag) < 16) {
+            return $this->json($response, ['error' => 'Auth tag invalide'], 500);
+        }
+
+        $plaintext = openssl_decrypt(
+            $ciphertext,
+            'aes-256-gcm',
+            $fileKey,
+            OPENSSL_RAW_DATA,
+            $iv,
+            $tag,
+            "" // AAD si tu n’en utilises pas
+        );
+
+        if ($plaintext === false) {
+            $message = 'Dechiffrement du contenu echoue';
+            error_log('openssl_decrypt plaintext failed: ' . openssl_error_string());
+            return $this->json($response, ['error' => $message], 500);
+        }
+
+        // Vérifier le checksum
+        $computedChecksum = hash('sha256', $ciphertext, true);
+        if (!hash_equals($versionRow['checksum'], $computedChecksum)) {
+            error_log('AVERTISSEMENT : Checksum ne correspond pas pour file_id=' . $fileId);
+        }
+
+        $filename = (string)($file['original_name'] ?? 'download');
+        $mime = (string)($file['mime'] ?? 'application/octet-stream');
+
+        // renvoyer le PLAINTEXT  et pas le fichier chiffré!!!!
+        $response->getBody()->write($plaintext);
+
+        return $response
+            ->withHeader('Content-Type', $mime)
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Content-Length', (string)strlen($plaintext))
+            ->withStatus(200);
+
+    }
+
+    private function json(Response $response, array $data, int $status): Response{
+        $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
+
+
 
     // DELETE /files/{id}
     public function delete(Request $request, Response $response, array $args): Response
@@ -436,8 +602,7 @@ class FileController
         $file = $this->files->find($id);
 
         if (!$file) {
-            $response->getBody()->write(json_encode(['error' => 'File not found']));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
         }
 
         // Supprimer le fichier sur le disque
@@ -448,9 +613,7 @@ class FileController
 
         // Supprimer en base
         $this->files->delete($id);
-
-        $response->getBody()->write(json_encode(['message' => 'File deleted']));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+        return $this->json($response, ['message' => 'File deleted'], 200);
     }
 
 
@@ -463,45 +626,35 @@ class FileController
             $userId = (int)$user['id'];
 
         } catch (\Exception $e) {
-            return $response
-                ->withHeader('Content-Type', 'application/json')
-                ->withStatus(401)
-                ->withBody($response->getBody()->write(json_encode([
-                    'error' => $e->getMessage()
-                ])));
+            return $this->json($response, ['error' => $e->getMessage()], 401);
         }
 
         
         $fileId = (int)($args['id'] ?? 0);
         if($fileId <= 0){
-            $response->getBody()->write(json_encode(['error' => 'id invalide'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'id invalide'], 400);
         }
 
         //vérif fichier et owner
         $file = $this->files->find($fileId);
         if(!$file){
-            $response->getBody()->write(json_encode(['error' => 'Fichier introuvable'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
         }
 
          if((int)$file['user_id'] !== $userId){
-            $response->getBody()->write(json_encode(['error' => 'Acces interdit'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            return $this->json($response, ['error' => 'Acces interdit'], 403);
         }
 
         //récupération le fichier uploadé
         $uploadedFiles = $request->getUploadedFiles();
 
         if(!isset($uploadedFiles['file'])){
-            $response->getBody()->write(json_encode(['error' => "Aucun fichier portant la cle «file» n'a ete trouve."], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => "Aucun fichier portant la cle «file» n'a ete trouve."], 400);
         }
 
         $newFile = $uploadedFiles['file'];
         if($newFile->getError() !== UPLOAD_ERR_OK){
-            $response->getBody()->write(json_encode(['error' => 'Upload error', 'code' => $newFile->getError()], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Upload error', 'code' => $newFile->getError()], 400);
         }
 
         $size = (int)$newFile->getSize();
@@ -511,8 +664,7 @@ class FileController
         $quota = $this->files->userQuotaTotal($userId);
 
         if($quota > 0 && ($totalSize + $size) > $quota){
-            $response->getBody()->write(json_encode(['error' => 'Quota exceeded'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(413);
+            return $this->json($response, ['error' => 'Quota exceeded'], 413);
         }
 
         //charger le contenu et chiffrer => pour l'instant max. 10Mo
@@ -520,87 +672,103 @@ class FileController
         $plain = @file_get_contents($temporairePath);
 
         if($plain === false){
-            $response->getBody()->write(json_encode(['error' => 'Impossible de lire le fichier téléchargé'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            return $this->json($response, ['error' => 'Impossible de lire le fichier téléchargé'], 500);
         }
 
-        $fileKey = random_bytes(32);    //=> AES-256
-        $iv = random_bytes(12);         //=> Initialization Vector => GCM recommandé 12 bytes
-        $tag = '';
+        // $fileKey = random_bytes(32);    //=> AES-256
+        // $iv = random_bytes(12);         //=> Initialization Vector => GCM recommandé 12 bytes
+        // $tag = '';
 
-        $ciphertext = openssl_encrypt(
-            $plain, //=> contenu original non chiffré
-            'aes-256-gcm', //=> chiffrement symétrique - taille clé = 256 bits (= 32 octets) - mode fait chiffrement + garantie l'intégrité
-            $fileKey, //=> clé secrete -> chiffrer et déchiffrer
-            OPENSSL_RAW_DATA, //=> retourne le résultat en binaire brut et pas en base64
-            $iv, //=> nonce/IV ->unique pour chaque chiffrement avec la même clé
-            $tag, //=> remplie par OpenSSL avec la tag d'authentification (16 octets)
-            "",   //=> AAD -> Additional Authenticated Data = données non chiffrées mais protégées par le tag. (ex: fileId/version)
-            16 //=>la longueur du tag à produire : 16 octets (128 bits) => valeur standard
-        );
+        // $ciphertext = openssl_encrypt(
+        //     $plain, //=> contenu original non chiffré
+        //     'aes-256-gcm', //=> chiffrement symétrique - taille clé = 256 bits (= 32 octets) - mode fait chiffrement + garantie l'intégrité
+        //     $fileKey, //=> clé secrete -> chiffrer et déchiffrer
+        //     OPENSSL_RAW_DATA, //=> retourne le résultat en binaire brut et pas en base64
+        //     $iv, //=> nonce/IV ->unique pour chaque chiffrement avec la même clé
+        //     $tag, //=> remplie par OpenSSL avec la tag d'authentification (16 octets)
+        //     "",   //=> AAD -> Additional Authenticated Data = données non chiffrées mais protégées par le tag. (ex: fileId/version)
+        //     16 //=>la longueur du tag à produire : 16 octets (128 bits) => valeur standard
+        // );
 
-        if($ciphertext === false || strlen($tag) !== 16){
-            $response->getBody()->write(json_encode(['error' => 'Encryptage failed'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
+        // if($ciphertext === false || strlen($tag) !== 16){
+        //     $response->getBody()->write(json_encode(['error' => 'Encryptage failed'], JSON_PRETTY_PRINT));
+        //     return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        // }
 
-        // Enveloppe de clé (key_envelope) avec une clé maître serveur
-        // $raw1 = $_ENV['KEY_ENCRYPTION_KEY'] ?? null;
-        // $raw2 = getenv('KEY_ENCRYPTION_KEY');
        
-        // error_log("DEBUG KEK _ENV: " . ($raw1 === null ? 'null' : ('len=' . strlen($raw1))));
-        // error_log("DEBUG KEK getenv: " . ($raw2 === false ? 'false' : ('len=' . strlen($raw2))));
 
-        // $kek = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
+        // $kek = $this->kek;
 
-        $kek = $this->kek;
-        if ($kek === '' || strlen($kek) < 32) {
-        error_log("CRITICAL: KEK non disponible au moment de l'upload");
-        $response->getBody()->write(json_encode([
-            'error' => 'Server KEK missing/misconfigured'
-        ], JSON_PRETTY_PRINT));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-    }
+        // if ($kek === '' || strlen($kek) < 32) {
+        //     error_log("CRITICAL: KEK non disponible au moment de l'upload");
 
-        $kek = substr($kek, 0, 32);
+        //     $response->getBody()->write(json_encode([
+        //         'error' => 'Server KEK missing/misconfigured'
+        //     ], JSON_PRETTY_PRINT));
+        //     return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        // }
 
-        $envIv = random_bytes(12);
-        $envTag = '';
-        $wrappedKey = openssl_encrypt(
-            $fileKey,
-            'aes-256-gcm',
-            $kek,
-            OPENSSL_RAW_DATA,
-            $envIv,
-            $envTag,
-            "",
-            16
-        );
+        // $kek = substr($kek, 0, 32);
 
-        if($wrappedKey === false || strlen($envTag) !== 16){
-            $response->getBody()->write(json_encode(['error' => 'Key envelope failed'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-        }
+        // $envIv = random_bytes(12);
+        // $envTag = '';
+        // $wrappedKey = openssl_encrypt(
+        //     $fileKey,
+        //     'aes-256-gcm',
+        //     $kek,
+        //     OPENSSL_RAW_DATA,
+        //     $envIv,
+        //     $envTag,
+        //     "",
+        //     16
+        // );
 
-        // key_envelope = envIv || envTag || wrappedKey
-        $keyEnvelope = $envIv . $envTag . $wrappedKey;
+        // if($wrappedKey === false || strlen($envTag) !== 16){
+        //     $response->getBody()->write(json_encode(['error' => 'Key envelope failed'], JSON_PRETTY_PRINT));
+        //     return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        // }
+
+        // // key_envelope = envIv || envTag || wrappedKey
+        // $keyEnvelope = $envIv . $envTag . $wrappedKey;
 
         //stockage disque
-        if(!is_dir($this->uploadDir)){
-            mkdir($this->uploadDir, 0777, true);
-        }
+        // if(!is_dir($this->uploadDir)){
+        //     mkdir($this->uploadDir, 0777, true);
+        // }
 
-        //nom stocké
-        $storedName = uniqid('fv_', true) . '_file_' . $fileId .'.bin';
-        $outPath = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+        try {
+            $aadContent = "file:$fileId";
+            $aadKey = "filekey:$fileId";
 
-        $bytesWritten = @file_put_contents($outPath, $ciphertext);
-        if($bytesWritten === false){
-            $response->getBody()->write(json_encode(['error' => 'Cannot write encrypted file'], JSON_PRETTY_PRINT));
+            $crypto = FileCrypto::encryptForStorage($plain, $this->kek, $aadContent, $aadKey);
+
+            //stockage disque
+            StorageWriter::ensureDir($this->uploadDir);
+
+            //nom stocké
+            $storedName = uniqid('fv_', true) . '_file_' . $fileId .'.bin';
+            $outPath = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+
+            StorageWriter::writeBinary($outPath, $crypto['ciphertext']);
+
+            $checksum = $crypto['checksum'];
+
+        }catch(\Throwable $e){
+            $response->getBody()->write(json_encode([
+                'error' => 'Encryption/storage failed',
+                'details' => $e->getMessage(),
+            ], JSON_PRETTY_PRINT));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
 
-        $checksum = hash('sha256', $ciphertext, true); //=> BINARY(32)
+
+        // $bytesWritten = @file_put_contents($outPath, $ciphertext);
+        // if($bytesWritten === false){
+        //     $response->getBody()->write(json_encode(['error' => 'Cannot write encrypted file'], JSON_PRETTY_PRINT));
+        //     return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        // }
+
+        // $checksum = hash('sha256', $ciphertext, true); //=> BINARY(32)
 
         //nextversion + insert => transaction pour éviter les collisions
         try{
@@ -614,9 +782,9 @@ class FileController
                 'file_id'       => $fileId,
                 'version'       => $nextVersion,
                 'stored_name'   => $storedName,
-                'iv'            => $iv,
-                'auth_tag'      => $tag,
-                'key_envelope'  => $keyEnvelope,
+                'iv'            => $crypto['iv'],
+                'auth_tag'      => $crypto['tag'],
+                'key_envelope'  => $crypto['key_envelope'],
                 'checksum'      => $checksum,
                 'size'          => $size,
                 'created_at'    => date('Y-m-d H:i:s')
@@ -941,10 +1109,7 @@ class FileController
         
         // Validation
         if (!isset($body['user_id']) || !isset($body['name'])) {
-            $response->getBody()->write(json_encode([
-                'error' => 'user_id and name are required'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'user_id and name are required'], 400);
         }
 
         // Si parent_id n'est pas fourni ou est 0 => à mettre NULL pour un dossier racine
@@ -962,14 +1127,12 @@ class FileController
         
         $folderId = $this->files->createFolder($folderData);
         
-        $response->getBody()->write(json_encode([
+        return $this->json($response, [
             'message'       => 'Folder created',
             'id'            => $folderId,
             'name'          => $body['name'],
             'parent_id'     => $parentId
-        ], JSON_PRETTY_PRINT));
-        
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
+        ], 201);
     }
 
     // DELETE /folders/{id}
@@ -979,8 +1142,7 @@ class FileController
         $folder = $this->files->findFolder($id);
 
         if (!$folder) {
-            $response->getBody()->write(json_encode(['error' => 'Folder not found']));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Folder not found'], 404);
         }
 
         // Supprimer le fichier sur le disque
@@ -992,9 +1154,8 @@ class FileController
         // Supprimer en base
         $this->files->deleteFolder($id);
 
-        $response->getBody()->write(json_encode(['message' => 'Folder deleted']));
         // suppression réussi => statut: 204
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(204);
+        return $this->json($response, ['message' => 'Folder deleted'], 204);
     }
 
 
@@ -1008,26 +1169,22 @@ class FileController
 
         } catch (\Exception $e) {
             $code = (int)($e->getCode() ?: 401);
-            $response->getBody()->write(json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
+            return $this->json($response, ['error' => $e->getMessage()], $code);
         }
 
         $id = (int)($args['id'] ?? 0);
         if($id <= 0){
-            $response->getBody()->write(json_encode(['error' => 'id invalide'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'id invalide'], 400);
         }
 
         $folder = $this->files->findFolder($id);
         if(!$folder){
-            $response->getBody()->write(json_encode(['error' => 'Dossier introuvable'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Dossier introuvable'], 404);
         }
 
         //est-ce que le user est le propriètaire
         if((int)$folder['user_id'] !== $userId){
-            $response->getBody()->write(json_encode(['error' => 'Acces interdit'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            return $this->json($response, ['error' => 'Acces interdit'], 403);
         }
 
         $body = $request->getParsedBody();
@@ -1035,36 +1192,30 @@ class FileController
 
         $newName = isset($body['name']) ? trim((string)$body['name']) : '';
         if($newName === ''){
-            $response->getBody()->write(json_encode(['error' => 'Nom obligatoire'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Nom obligatoire'], 400);
         }
 
         // interdit quelques caractères => \,/,:,*,?,",<,>,|
         if (preg_match('/[\\\\\\/\\:\\*\\?\\"\\<\\>\\|]/', $newName)) {
-            $response->getBody()->write(json_encode(['error' => 'Nom invalide (caracteres interdits)'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Nom invalide (caracteres interdits)'], 400);
         }
 
         //empêcher le doublon dans le même parent
         $parentId = $folder['parent_id'] !== null ? (int)$folder['parent_id'] : null;
         if($this->files->folderNameExistForUser($userId, $parentId, $newName, $id)){
-            $response->getBody()->write(json_encode(['error' => 'Un dossier avec ce nom existe deja ici'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            return $this->json($response, ['error' => 'Un dossier avec ce nom existe deja ici'], 409);
         }
 
         $ok = $this->files->renameFolder($id, $newName);
         if(!$ok){
-            $response->getBody()->write(json_encode(['error' => 'Renommage non applique...'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Renommage non applique...'], 404);
         }
 
-        $response->getBody()->write(json_encode([
+        return $this->json($response, [
             'message'       => 'Dossier renomme',
             'id'            => $id,
             'name'          => $newName
-        ], JSON_PRETTY_PRINT));
-
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+        ], 200);
 
     }
 
@@ -1078,26 +1229,22 @@ class FileController
 
         } catch (\Exception $e) {
             $code = (int)($e->getCode() ?: 401);
-            $response->getBody()->write(json_encode(['error' => $e->getMessage()], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
+            return $this->json($response, ['error' => $e->getMessage()], $code);
         }
 
         $id = (int)($args['id'] ?? 0);
         if($id <= 0){
-            $response->getBody()->write(json_encode(['error' => 'id invalide'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'id invalide'], 400);
         }
 
         $file = $this->files->find($id);
         if(!$file){
-            $response->getBody()->write(json_encode(['error' => 'Fichier introuvable'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
         }
 
         //est-ce que le user est le propriètaire
         if((int)$file['user_id'] !== $userId){
-            $response->getBody()->write(json_encode(['error' => 'Acces interdit'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            return $this->json($response, ['error' => 'Acces interdit'], 403);
         }
 
         $body = $request->getParsedBody();
@@ -1105,40 +1252,35 @@ class FileController
 
         $newName = isset($body['name']) ? trim((string)$body['name']) : '';
         if($newName === ''){
-            $response->getBody()->write(json_encode(['error' => 'Nom obligatoire'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Nom obligatoire'], 400);
         }
 
         // interdit quelques caractères => \,/,:,*,?,",<,>,|
         if (preg_match('/[\\\\\\/\\:\\*\\?\\"\\<\\>\\|]/', $newName)) {
-            $response->getBody()->write(json_encode(['error' => 'Nom invalide (caracteres interdits)'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Nom invalide (caracteres interdits)'], 400);
         }
 
         //empêcher le doublon dans le même dossier
         $folderId = (int)$file['folder_id'];
         if($this->files->fileNameExistForUser($userId, $folderId, $newName, $id)){
-            $response->getBody()->write(json_encode(['error' => 'Un fichier avec ce nom existe déjà ici'], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            return $this->json($response, ['error' => 'Un fichier avec ce nom existe déjà ici'], 409);
         }
 
         $ok = $this->files->renameFile($id, $newName);
         if(!$ok){
-            $response->getBody()->write(json_encode([
+
+            return $this->json($response, [
                 'error'         => 'Aucun changement',
                 'id'            => $id,
                 'original_name' => $newName
-            ], JSON_PRETTY_PRINT));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+            ], 200);
         }
 
-        $response->getBody()->write(json_encode([
+        return $this->json($response, [
             'message'       => 'Fichier renomme',
             'id'            => $id,
             'original_name' => $newName
-        ], JSON_PRETTY_PRINT));
-
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+        ], 200);
 
     }
 

@@ -52,11 +52,35 @@
                     <p class= "py-1 pt-3"><strong>Taille du fichier :</strong> <span id="file-size"></span></p>
                     <p class= "py-1"><strong>Créé le :</strong> <span id="file-date"></span></p>
 
+                    <div id= "versions-box" class="py-1">
+                        <span class="badge text-bg-secondary" id="version-badge"> Versions </span>
+                        <span class= "ms-2"><strong>Version courante : </strong>
+                            <span class="" id= "current-version-date"> - </span>
+                        </span>
+                    </div>
+
+                    <!-- sélécteur => quand ça va être autorisé -->
+                    <div id="version-picker-wrap" class="mt-2">
+                        <label for="version-picker" class="form-label mb-1">Choisir une version</label>
+                        <select name="version-picker" id="version-picker" class="form-select form-select-sm"></select> 
+                        <div class="form-text" id= "version-picker-helper">
+                            <p>Certaines versions peuvent ne pat être disponible publiquement.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-2" id="versions-info-only">
+                        <small class="text-muted">
+                            Plusieurs versions existent, mais ce lien public ne permet pas de choisir une version.
+                        </small>
+                    </div>
+
                     <!-- expiration -->
                     <p class= "py-1"><strong>Expiration :</strong> <span id="expires-left">-</span></p>
 
                     <!-- optionnel: restant => implémenter côté JS plus tard -->
                     <!-- <p><strong>Restant :</strong> <span id="uses-left">-</span></p> -->
+
+
                 </div>
 
                 <div class="file-actions d-flex justify-content-center">
