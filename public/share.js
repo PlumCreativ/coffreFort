@@ -61,10 +61,23 @@ function getToken() {
   return new URLSearchParams(window.location.search).get("token");
 }
 
+function formatDateTime(sqlDate) {
+    if(!sqlDate) return "-";
+
+    // sqlDate: "2025-12-26 09:39:54"
+
+    const date = new Date(sqlDate.replace(" ", "T"));
+    if(isNaN(date.getTime())){
+        return sqlDate;
+    }
+
+    return date.toLocaleDateString("fr-FR");
+}
+
 const token = getToken();
 
 if (!token) {
-  document.querySelector("#file-name").textContent = "Token manquant";
+  setText("#file-name", "Token manquant");
   throw new Error("Token manquant");
 }
 
@@ -90,6 +103,78 @@ fetch(metaurl)
 
         // date
         setText("#file-date", file?.created_at || "-");
+
+
+        //versions UI
+        const versionsCount = file?.versions_count ?? 0;
+        const currentVersionDate = file?.current_version?.created_at ?? null;
+
+        //par défaut tout qui est caché
+        // sécurité
+        hide("#versions-box");
+        hide("#version-picker-wrap");
+        hide("#versions-info-only");
+
+        if(versionsCount > 1) {
+            show("#versions-box");
+            setText("#current-version-date", formatDateTime(currentVersionDate));
+
+            //sélecteur si exposition publique va être autorisée => actuellement .......????????
+            const allowPublicVersionPick = meta.allow_public_version_pick === true;
+
+            if(allowPublicVersionPick){
+                show("#version-picker-wrap");
+                hide("#versions-info-only");
+
+                const versionsUrl = `/s/${encodeURIComponent(token)}/versions?limit=50&offset=0`;
+
+                fetch(versionsUrl)
+                    .then(async resp => {
+                        const data = await resp.json().catch(() => ({}));
+                        if(!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+                        return data;
+                    })
+
+                    .then((vdata) => {
+                        //peupler le select min version courante only => plus tard via endpoint???
+                        const sel = document.querySelector("#version-picker");
+
+                        if(!sel) return;
+
+                        sel.innerHTML = "";
+
+                        //placeholder => version courante => download sans ?v=
+                        const placeholder = document.createElement("option");
+                        placeholder.value = "";
+                        placeholder.textContent = "Version courante";
+                        sel.appendChild(placeholder);
+
+                        (vdata.versions || []).forEach((v) => {
+                            const option = document.createElement("option");
+                            option.value = String(v.version);
+                            option.textContent = `v${v.version} - ${formatDateTime(v.created_at)} (${humanSize(v.size)})`;
+                            sel.appendChild(option); 
+                        });
+
+                        // pour éviter d'emplier en cas de rechargement
+                        sel.onchange = () => {
+                            const v = sel.value;
+
+                            //autorisation sur ?v= sur download => future
+                            // const dl = document.querySelector("#dl-link");
+                            // const base = `/s/${encodeURIComponent(token)}/download`;
+                            // dl.href = v ? `${base}?v=${encodeURIComponent(v)}` : base;
+
+                            console.log("Version sélectionné: ", v);
+                        };
+                    })
+                    .catch((err) => {
+                        console.error("versions fetch error : ", err);
+                        hide("#version-picker-wrap");
+                        show("#versions-info-only");
+                    })
+            }
+        }
 
         // lien de download public
         const dl = document.querySelector("#dl-link");
@@ -159,8 +244,12 @@ fetch(metaurl)
                     // essayer de récupérer le nom de fichier depuis Content-Disposition
                     let filename = (file && file.original_name) ? file.original_name : "download";
                     
-                    const cd = response.headers.get("Content-Disposition") || "";
-                    const mStar = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(cd);
+                    const cd = response.headers.get("Content-Disposition") || "";  //p.ex. attachment, MonFichier.pdf
+
+                    // capture de filename* = UTF-8'' => jusqu'au ;
+                    const mStar = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(cd); 
+
+                    //chercher la variante filename=.. avec ou sans guillements
                     const m = /filename\s*=\s*"([^"]+)"/i.exec(cd) || /filename\s*=\s*([^;]+)/i.exec(cd);
                     
                     if(mStar && mStar[1]){ // filename="Poupee.pdf"
@@ -199,6 +288,7 @@ fetch(metaurl)
             show("#dl-link");
         }
 
+        //expiration
         const left = daysLeft(meta.expires_at);
         if(left != null){
             const txt = left <= 0 ? "Expire" : `Expire dans ${left} jour(s)`;

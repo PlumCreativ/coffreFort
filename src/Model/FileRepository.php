@@ -252,6 +252,28 @@ class FileRepository
         return ['rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit];
     }
 
+    
+    public function listVersionsForShare(int $fileId, int $limit = 20, int $offset = 0): array
+    {
+        $limit = max(1, min(100, $limit));
+        $offset = max(0, $offset);
+
+        $rows = $this->db->select('file_versions', [
+            'id',
+            'version',
+            'size',
+            'created_at'
+        ], [
+            'file_id' => $fileId,
+            'ORDER'   => ['version' => 'DESC'],
+            'LIMIT'   => [$offset, $limit]
+        ]) ?: [];
+
+        $total = (int)($this->db->count('file_versions', ['file_id' => $fileId]) ?: 0);
+
+        return ['rows' => $rows, 'total' => $total, 'limit' => $limit, 'offset' => $offset];
+    }
+
     //dernier version d'un fichier => version courante
     public function getCurrentVersionRow(int $fileId): ?array
     {
@@ -277,7 +299,7 @@ class FileRepository
     
 
     //version précise
-    public function getVersionRow(int $fileId, int $version): array
+    public function getVersionRow(int $fileId, int $version): ?array
     {
         return $this->db->get('file_versions', [
             'id', 
@@ -286,13 +308,34 @@ class FileRepository
             'stored_name',
             'size',
             'created_at',
-            'checksum'
+            'iv',                //pour pouvoir déchiffrer une version précise
+            'auth_tag',          //pour pouvoir déchiffrer une version précise
+            'key_envelope',      //pour pouvoir déchiffrer une version précise
+            'checksum',
         ], [
             'file_id'   => $fileId,
             'version'   => $version
         ]) ?: null;
     }
 
+
+    //pour affichage côté client web
+     public function getCurrentVersionMeta(int $fileId): ?array
+    {
+        $row = $this->db->get('file_versions', [
+            'id', 
+            'file_id',
+            'version',
+            'size',
+            'created_at',
+        ], [
+            'file_id'   => $fileId,
+            'ORDER'     => ['version' => 'DESC'],
+            'LIMIT'     => 1
+        ]);
+
+        return $row ?: null;
+    }
    
 
     // ======================= Folders ========================================

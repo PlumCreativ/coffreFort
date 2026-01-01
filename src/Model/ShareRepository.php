@@ -15,16 +15,17 @@ class ShareRepository{
     public function create(array $data): array{
 
         $this->db->insert('shares', [
-            'user_id'           => $data['user_id'],
-            'kind'              => $data['kind'], //file or folder
-            'target_id'         => $data['target_id'],
-            'token'             => $data['token'],
-            'token_sig'         => $data['token_sig'], //signature to verify token integrity
-            'label'             => $data['label'] ?? null,
-            'expires_at'        => $data['expires_at'] ?? null,
-            'max_uses'          => $data['max_uses'] ?? null,
-            'remaining_uses'    => $data['max_uses'] ?? null,
-            'is_revoked'        => 0
+            'user_id'               => (int)$data['user_id'],
+            'kind'                  => (string)$data['kind'], //file or folder
+            'target_id'             => (int)$data['target_id'],
+            'token'                 => (string)$data['token'],
+            'token_sig'             => (string)$data['token_sig'], //signature to verify token integrity
+            'label'                 => $data['label'] ?? null,
+            'expires_at'            => $data['expires_at'] ?? null,
+            'max_uses'              => $data['max_uses'] ?? null,
+            'remaining_uses'        => $data['max_uses'] ?? null,
+            'is_revoked'            => 0, 
+            'allow_fixed_versions'  => (int)($data['allow_fixed_versions'] ?? 0),
         ]);
 
         $id = (int)$this->db->id();
@@ -55,7 +56,7 @@ class ShareRepository{
             'remaining_uses[-]'     => 1
         ], [
             'AND' => [
-                'id' => $id,
+                'id'                => $id,
                 'remaining_uses[!]' => null
             ]
         ]);
@@ -69,7 +70,7 @@ class ShareRepository{
         $count = $this->db->update('shares', [
             'remaining_uses[-]' => 1
         ], [
-            'id' => $shareId,
+            'id'                => $shareId,
             'remaining_uses[>]' => 0
         ])->rowCount();
 

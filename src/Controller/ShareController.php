@@ -75,6 +75,7 @@ class ShareController{
         $label = isset($body['label']) ? trim((string)$body['label']) : null;
         $maxUses = array_key_exists('max_uses', $body) ? (int)$body['max_uses'] : null;
         $expiresAtRaw = $body['expires_at'] ?? null;
+        $allowFixedVersions = !empty($body['allow_fixed_versions']) ? 1 : 0;
 
 
         //validations
@@ -124,15 +125,16 @@ class ShareController{
         //il faut l'id pour signer => insert puis update la signature
         // => à mettre le token_sig temporairement à une valeur bidon => puis l'update
         $created = $this->shares->create([
-            'user_id'        => $userId,
-            'kind'           => $kind,
-            'target_id'      => $targetId,
-            'token'          => $token,
-            'token_sig'      => str_repeat('0', 64),
-            'label'          => $label,
-            'expires_at'     => $expiresAtSql,
-            'max_uses'       => $maxUses,
-            'remaining_uses' => $maxUses
+            'user_id'                => $userId,
+            'kind'                   => $kind,
+            'target_id'              => $targetId,
+            'token'                  => $token,
+            'token_sig'              => str_repeat('0', 64),
+            'label'                  => $label,
+            'expires_at'             => $expiresAtSql,
+            'max_uses'               => $maxUses,
+            'remaining_uses'         => $maxUses,
+            'allow_fixed_versions'   => $allowFixedVersions,
         ]);
 
         $shareId = (int)$created['id'];
@@ -148,17 +150,18 @@ class ShareController{
 
 
         return $this->json($response, [
-            'id'             => $shareId,
-            'user_id'        => $userId,
-            'kind'           => $kind,
-            'target_id'      => $targetId,
-            'label'          => $label,
-            'expires_at'     => $expiresAtSql,
-            'max_uses'       => $maxUses,
-            'remaining_uses' => $maxUses,
-            'is_revoked'     => 0,
-            'created_at'     => $created['created_at'] ?? date('Y-m-d H:i:s'),
-            'url'            => $url
+            'id'                    => $shareId,
+            'user_id'               => $userId,
+            'kind'                  => $kind,
+            'target_id'             => $targetId,
+            'label'                 => $label,
+            'expires_at'            => $expiresAtSql,
+            'max_uses'              => $maxUses,
+            'remaining_uses'        => $maxUses,
+            'is_revoked'            => 0,
+            'allow_fixed_versions'  => $allowFixedVersions,
+            'created_at'            => $created['created_at'] ?? date('Y-m-d H:i:s'),
+            'url'                   => $url
         ], 201);
     }
 
@@ -261,17 +264,28 @@ class ShareController{
             $file = $this->files->find($fileId);
 
             if(!$file){
-                return $this->json($response, ['error', 'Fichier partage introuvable'], 404);
+                return $this->json($response, ['error' => 'Fichier partage introuvable'], 404);
             }
 
+            $versionCount = $this->files->getVersionCount($fileId);
+            $currentVersion = $this->files->getCurrentVersionMeta($fileId);
+
             $fileMeta = [
-                'id'            => (int)$file['id'],
-                'user_id'       => (int)$file['user_id'],
-                'folder_id'     => (int)$file['folder_id'],
-                'original_name' => (string)($file['original_name'] ?? ''),
-                'size'          => isset($file['size']) ? (int)$file['size'] : null,
-                'created_at'    => (string)($file['created_at'] ?? ''),
-                'mime'          => (string)($file['mime'] ?? ''),
+                'id'                => (int)$file['id'],
+                'user_id'           => (int)$file['user_id'],
+                'folder_id'         => (int)$file['folder_id'],
+                'original_name'     => (string)($file['original_name'] ?? ''),
+                'size'              => isset($file['size']) ? (int)$file['size'] : null,
+                'created_at'        => (string)($file['created_at'] ?? ''),
+                'mime'              => (string)($file['mime'] ?? ''),
+
+                'versions_count'    => (int)$versionCount,
+                'current_version'   => $currentVersion ?[
+                    'id'         => (int)$currentVersion['id'],
+                    'version'    => (int)$currentVersion['version'],
+                    // meta.file.current_version.created_at
+                    'created_at' => (string)$currentVersion['created_at'],
+                ] : null,
             ];
         }else if($share['kind'] === 'folder'){
             $fileMeta = null; //=> à remplir plus tard!!!
@@ -286,6 +300,7 @@ class ShareController{
             'max_uses'          => $share['max_uses'],
             'remaining_uses'    => $share['remaining_uses'],
             'is_revoked'        => (int)$share['is_revoked'],
+            'allow_public_version_pick' => (int)($share['allow_fixed_versions'] ?? 0) === 1,
 
             'file'              => $fileMeta,
         ], 200);
@@ -317,9 +332,6 @@ class ShareController{
         }
 
         $shareId = (int)$share['id'];
-
-        // $params = $request->getQueryParams();
-        // $requestedVersion = isset($params['v']) ? (int)$params['v'] : null;
 
         $versionRow = null;
 
@@ -360,28 +372,34 @@ class ShareController{
                 return $this->json($response, ['error' => $message], 404);
             }
 
+            $params = $request->getQueryParams();
+            $requestedVersion = isset($params['v']) ? (int)$params['v'] : null;
             
-            // // choisir la version à servir
-            // if($requestedVersion !== null && $requestedVersion > 0){
+            // choisir la version à servir
+            if($requestedVersion !== null && $requestedVersion > 0){
 
-            //     // actuellement c'est refusé
-            //     $message = 'Les versions figées (?v=) ne sont pas autorisées pour ce lien (pas encore implémenté)';
-            //     return $this->json($response, ['error' => $message], 403);
+                // interdire si le share n'autorise pas
+                if((int)($share['allow_fixed_versions'] ?? 0) !== 1){
+                    $message = 'Les versions figées (?v=) ne sont pas autorisées pour ce lien';
+                    return $this->json($response, ['error' => $message], 403);
+                }
+                
+                $versionRow = $this->files->getVersionRow($fileId, $requestedVersion);
 
-            //     // OPTION FUTURE: autoriser seulement si le share le permet (à définir)
-            //     //..........
-            //     // if (!(bool)$share['allow_fixed_versions']) { ...403... }
-            //     // $versionRow = $this->files->getVersionRow($fileId, $requestedV);
+                if(!$versionRow){
+                    $message = "Version demandee introuvable";
+                    return $this->json($response, ['error' => $message], 404);
+                }
 
-            // } else {
-            //     $versionRow = $this->files->getCurrentVersionRow($fileId);
-            // }
+            } else {
+                $versionRow = $this->files->getCurrentVersionRow($fileId);
+            }
 
-            $versionRow = $this->files->getCurrentVersionRow($fileId);
+            //$versionRow = $this->files->getCurrentVersionRow($fileId);
 
             //Fichier CHIFFRÉ (a des versions dans file_versions)
             if($versionRow !== null){
-                error_log("Download Chiffré pour file_id = $fileid (partage via token");
+                error_log("Download Chiffré pour file_id = $fileId (partage via token");
 
                 //version courante
                 $versionId = (int)$versionRow['id'];
@@ -407,7 +425,7 @@ class ShareController{
                     return $this->json($response, ['error' => $message], 500);
                 }
 
-                // Charger KEK
+                // Charger KEK (32 bytes)
                 $kekRaw = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
                 $kek = trim($kekRaw);
                 
@@ -422,11 +440,15 @@ class ShareController{
                 // Extraire key_envelope (envIv || envTag || wrappedKey)
                 $keyEnvelope = $versionRow['key_envelope'];
                 
-                if (strlen($keyEnvelope) < 28) {
+                if (!is_string($keyEnvelope) || strlen($keyEnvelope) < 28) {
                     $message = 'Key envelope invalide (trop court)';
                     return $this->json($response, ['error' => $message], 500);
                 }
                 
+                $servedVersion = (int)$versionRow['version']; // important
+                $aadKey     = "filekey:$fileId:v$servedVersion";
+                $aadContent = "file:$fileId:v$servedVersion";
+
                 $envIv = substr($keyEnvelope, 0, 12);
                 $envTag = substr($keyEnvelope, 12, 16);
                 $wrappedKey = substr($keyEnvelope, 28);
@@ -439,8 +461,8 @@ class ShareController{
                     OPENSSL_RAW_DATA,
                     $envIv,
                     $envTag,
-                    "",
-                    16
+                    $aadKey 
+                    // 16
                 );
 
                 if ($fileKey === false) {
@@ -460,11 +482,11 @@ class ShareController{
                     OPENSSL_RAW_DATA,
                     $iv,
                     $tag,
-                    "",
-                    16
+                    $aadContent
+                    // 16
                 );
 
-                 if ($plaintext === false) {
+                if ($plaintext === false) {
                     $message = 'Dechiffrement du contenu echoue';
                     error_log('openssl_decrypt plaintext failed: ' . openssl_error_string());
                     return $this->json($response, ['error' => $message], 500);
@@ -486,27 +508,18 @@ class ShareController{
                     }
                 }
 
-                //stream
-                $stream = fopen($path, 'rb');
-                if ($stream === false) {
-                    $message = "Impossible d'ouvrir le fichier";
-                    return $this->json($response, ['error' => $message], 500);
-                }
     
-    
-                $body = $response->getBody();
-                while(!feof($stream)){
-                    $body->write(fread($stream, 8192));
-                }
-                fclose($stream);
-    
+                // renvoyer le PLAINTEXT  et pas le fichier chiffré!!!!
+                $response->getBody()->write($plaintext);
+
                 $success = true;
                 $message = 'Telechargement reussi';
+
     
                 return $response
                     ->withHeader('Content-Type', $file['mime'])
                     ->withHeader('Content-Disposition', 'attachment; filename="' . $file['original_name'] . '"')
-                    ->withHeader('Content-Length', (string)filesize($path))
+                    ->withHeader('Content-Length', (string)strlen($plaintext))
                     ->withStatus(200);
             }
 
@@ -571,6 +584,74 @@ class ShareController{
             //log le téléchargement
             $this->logs->log($shareId, $versionId, $ip, $userAgent, $success, $message);
         }
+
+    }
+
+
+    // GET /s/{token}/versions  => liste publique des versions si c'est autorisé
+    public function publicShareVersions(Request $request, Response $response, array $args):Response 
+    {
+        $token = (string)($args['token'] ?? '');
+        if($token === ''){
+            return $this->json($response, ['error' => 'Token manquant'], 400);
+        }
+
+        $share = $this->shares->findByToken($token);
+        if(!$share){
+            return $this->json($response, ['error' => 'Partage introuvable'], 404);
+        }
+
+        if ((int)$share['is_revoked'] === 1){
+            return $this->json($response, ['error' => 'Ce partage a ete revoque'], 403);
+        } 
+            
+        if ($share['expires_at'] && strtotime($share['expires_at']) <= time()){
+            return $this->json($response, ['error' => 'Ce partage a expire'], 403);
+        }
+
+        if ($share['remaining_uses'] !== null && (int)$share['remaining_uses'] <= 0){
+            return $this->json($response, ['error' => 'Nombre de telechargements atteint'], 403);
+        } 
+
+        //supporte que le file
+        if($share['kind'] !== 'file'){
+            return $this->json($response, ['error' => 'Partage de dossier non supporte pour le moment'], 501);
+        }
+
+        //autorisation d'exposer les versions
+        $allow = (int)($share['allow_fixed_versions'] ?? 0) === 1;
+        if(!$allow){
+            return $this->json($response, ['error' => 'Les versions ne sont pas exposées pour ce lien'], 403);
+        }
+
+        //télécharger le fichier
+        $fileId = (int)$share['target_id'];
+        $file = $this->files->find($fileId);
+        if(!$file){
+            return $this->json($response, ['error' => 'Fichier partage introuvable'], 404);
+        }
+
+        $params = $request->getQueryParams();
+        $limit = isset($params['limit']) ? (int)$params['limit'] : 20;
+        $offset = isset($params['offset']) ? (int)$params['offset'] : 0;
+
+        $res = $this->files->listVersionsForShare($fileId, $limit, $offset);
+
+        return $this->json($response, [
+            'file_id'       => $fileId,
+            'versions'      => array_map(function($r){
+                return [
+                    'id'            => (int)$r['id'],
+                    'version'       => (int)$r['version'],
+                    'size'          => isset($r['size']) ? (int)$r['size'] : null,
+                    'created_at'    => (string)$r['created_at'],
+                ];
+            }, 
+            $res['rows']),
+            'total'         => (int)$res['total'],
+            'limit'         => (int)$res['limit'],
+            'offset'         => (int)$res['offset'],
+        ], 200);
 
     }
 
