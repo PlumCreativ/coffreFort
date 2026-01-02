@@ -6,6 +6,8 @@ use App\Model\ShareRepository;
 use App\Model\DownloadLogRepository;
 use App\Security\ShareToken;
 use App\Security\AuthService;
+use App\Security\FileCrypto;
+use App\Security\StorageWriter;
 
 use Medoo\Medoo;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -47,7 +49,6 @@ class ShareController{
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 
-    
 
     // POST /shares -> création d’un partage avec validations.
     public function createShare(Request $request, Response $response): Response
@@ -64,7 +65,6 @@ class ShareController{
             return $this->json($response, ['error' => 'SHARE_SECRET manquant sur le serveur'], 500);
         }
 
-        
         $body = $request->getParsedBody();
         if(!is_array($body)){
             $body = [];
@@ -76,7 +76,6 @@ class ShareController{
         $maxUses = array_key_exists('max_uses', $body) ? (int)$body['max_uses'] : null;
         $expiresAtRaw = $body['expires_at'] ?? null;
         $allowFixedVersions = !empty($body['allow_fixed_versions']) ? 1 : 0;
-
 
         //validations
         if(!in_array($kind, ['file', 'folder'], true)){
@@ -101,7 +100,6 @@ class ShareController{
                 return $this->json($response, ['error' => "Vous n'êtes pas proprietaire de ce dossier"], 403);
             }
         }
-
 
         //validation expires_at futur (supporte ISO Z: 2025-12-31T23:59:59Z)
         $expiresAtSql = null;
@@ -148,7 +146,6 @@ class ShareController{
         $publicPath = '/share.php?token=' . $token; // URL publique sans la signature
         $url = $this->publicBaseUrl ? ($this->publicBaseUrl . $publicPath) : $publicPath;
 
-
         return $this->json($response, [
             'id'                    => $shareId,
             'user_id'               => $userId,
@@ -178,7 +175,8 @@ class ShareController{
 
         $params = $request->getQueryParams();
         $targetId = isset($params['target_id']) ? (int)$params['target_id'] : null;
-        $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 20;
+        $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 10;
+        // $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 20;
         $offset = isset($params['offset']) ? max(0, (int)$params['offset']) : 0;
 
         $where = ['user_id' => $userId];
@@ -336,7 +334,6 @@ class ShareController{
         $versionRow = null;
 
         try{
-
             if((int)$share['is_revoked'] === 1){
                 $message = 'Partage revoque';
                 return $this->json($response, ['error' => $message], 403);
@@ -425,77 +422,14 @@ class ShareController{
                     return $this->json($response, ['error' => $message], 500);
                 }
 
-                // Charger KEK (32 bytes)
-                $kekRaw = $_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '';
-                $kek = trim($kekRaw);
-                
-                if ($kek === '' || strlen($kek) < 32) {
-                    $message = 'KEK non configurée sur le serveur';
-                    error_log("KEK manquante ou invalide");
+                try{
+                    $kek = FileCrypto::normalizeKek($_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '');
+                    $decrypte = FileCrypto::decryptFromStorage($ciphertext, $versionRow, $kek, $fileId);
+                    $plaintext = $decrypte['plaintext'];
+                }catch (\Throwable $e){
+                    $message = $e->getMessage();
+                    error_log('Decrypt failed (publicDownload): ' . $message);
                     return $this->json($response, ['error' => $message], 500);
-                }
-                
-                $kek = substr($kek, 0, 32);
-
-                // Extraire key_envelope (envIv || envTag || wrappedKey)
-                $keyEnvelope = $versionRow['key_envelope'];
-                
-                if (!is_string($keyEnvelope) || strlen($keyEnvelope) < 28) {
-                    $message = 'Key envelope invalide (trop court)';
-                    return $this->json($response, ['error' => $message], 500);
-                }
-                
-                $servedVersion = (int)$versionRow['version']; // important
-                $aadKey     = "filekey:$fileId:v$servedVersion";
-                $aadContent = "file:$fileId:v$servedVersion";
-
-                $envIv = substr($keyEnvelope, 0, 12);
-                $envTag = substr($keyEnvelope, 12, 16);
-                $wrappedKey = substr($keyEnvelope, 28);
-
-                // Déchiffrer la clé du fichier
-                $fileKey = openssl_decrypt(
-                    $wrappedKey,
-                    'aes-256-gcm',
-                    $kek,
-                    OPENSSL_RAW_DATA,
-                    $envIv,
-                    $envTag,
-                    $aadKey 
-                    // 16
-                );
-
-                if ($fileKey === false) {
-                    $message = 'Impossible de dechiffrer la cle du fichier';
-                    error_log('openssl_decrypt fileKey failed: ' . openssl_error_string());
-                    return $this->json($response, ['error' => $message], 500);
-                }
-
-                // Déchiffrer le contenu
-                $iv = $versionRow['iv'];
-                $tag = $versionRow['auth_tag'];
-
-                $plaintext = openssl_decrypt(
-                    $ciphertext,
-                    'aes-256-gcm',
-                    $fileKey,
-                    OPENSSL_RAW_DATA,
-                    $iv,
-                    $tag,
-                    $aadContent
-                    // 16
-                );
-
-                if ($plaintext === false) {
-                    $message = 'Dechiffrement du contenu echoue';
-                    error_log('openssl_decrypt plaintext failed: ' . openssl_error_string());
-                    return $this->json($response, ['error' => $message], 500);
-                }
-
-                // Vérifier le checksum
-                $computedChecksum = hash('sha256', $ciphertext, true);
-                if (!hash_equals($versionRow['checksum'], $computedChecksum)) {
-                    error_log('AVERTISSEMENT : Checksum ne correspond pas pour file_id=' . $fileId);
                 }
 
                 //décrémentation atomique => 
@@ -508,14 +442,12 @@ class ShareController{
                     }
                 }
 
-    
                 // renvoyer le PLAINTEXT  et pas le fichier chiffré!!!!
                 $response->getBody()->write($plaintext);
 
                 $success = true;
                 $message = 'Telechargement reussi';
 
-    
                 return $response
                     ->withHeader('Content-Type', $file['mime'])
                     ->withHeader('Content-Disposition', 'attachment; filename="' . $file['original_name'] . '"')
@@ -556,7 +488,6 @@ class ShareController{
                 return $this->json($response, ['error' => $message], 500);
             }
 
-
             $body = $response->getBody();
             while(!feof($stream)){
                 $body->write(fread($stream, 8192));
@@ -572,7 +503,7 @@ class ShareController{
                 ->withHeader('Content-Length', (string)filesize($path))
                 ->withStatus(200);
         
-        }catch(\Exception $e){
+        }catch(\Throwable $e){
             error_log('Exception dans publicdownload: ' . $e->getMessage());
             $message = 'Erreur serveur: ' . $e->getMessage();
             return $this->json($response, ['error' => $message], 500);
@@ -584,7 +515,6 @@ class ShareController{
             //log le téléchargement
             $this->logs->log($shareId, $versionId, $ip, $userAgent, $success, $message);
         }
-
     }
 
 
@@ -652,7 +582,5 @@ class ShareController{
             'limit'         => (int)$res['limit'],
             'offset'         => (int)$res['offset'],
         ], 200);
-
     }
-
 }

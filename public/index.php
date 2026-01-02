@@ -38,14 +38,14 @@ $shareController = new ShareController($database);
 $app->get('/files', [$fileController, 'list']);
 $app->get('/filesPaginated', [$fileController, 'listPaginated']);
 $app->get('/files/{id}', [$fileController, 'show']);
-$app->get('/files/{id}/download', [$fileController, 'download']); //=> il faut qu'il soit chiffré
+$app->get('/files/{id}/download', [$fileController, 'download']); //=> (mainController) chiffré OK
 
-$app->post('/files', [$fileController, 'upload']);  //=> il faut qu'il soit chiffré
+$app->post('/files', [$fileController, 'upload']);  //=> (mainController) chiffré OK
 $app->delete('/files/{id}', [$fileController, 'delete']);
 $app->put('/files/{id}', [$fileController, 'renameFile']);  //renommage
-$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']);  //versionnage //=> il faut qu'il soit chiffré
+$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']); //=> (FileDetailsController) déchiffré OK
 $app->get('/files/{id}/versions', [$fileController, 'listVersions']);  //liste complète paginée des versions
-$app->get('/files/{id}/versions/{version}/download', [$fileController, 'downloadVersion']); //=> il faut qu'il soit chiffré
+$app->get('/files/{id}/versions/{version}/download', [$fileController, 'downloadVersion']); //=> (FileDetailsController) déchiffré OK
 
 //Stats / quota / activité
 $app->get('/stats', [$fileController, 'stats']);
@@ -72,7 +72,7 @@ $app->post('/shares', [$shareController, 'createShare']);
 $app->get('/shares', [$shareController, 'listShares']);
 $app->post('/shares/{id}/revoke', [$shareController, 'revokeShare']);
 $app->get('/s/{token}', [$shareController, 'publicShare']);
-$app->get('/s/{token}/download', [$shareController, 'publicDownload']); //download
+$app->get('/s/{token}/download', [$shareController, 'publicDownload']); //=> (navigateur) déchiffré OK
 $app->get('/s/{token}/versions', [$shareController, 'publicShareVersions']); //liste publique
 
 // Route d'accueil (GET /)
