@@ -21,6 +21,10 @@ class UserController
         $this->jwtSecret = getenv('JWT_SECRET') ?: 'default-secret'; //=> à mettre dans env!!!
     }
 
+    private function json(Response $response, array $data, int $status): Response{
+        $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
 
     // POST /auth/register - Inscription d'un nouvel utilisateur
     public function register(Request $request, Response $response): Response
@@ -29,34 +33,22 @@ class UserController
 
         // Validation des champs requis
         if (!isset($body['email']) || !isset($body['password'])) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Email and password are required'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Email and password are required'], 400);
         }
 
         // Validation de l'email
         if (!filter_var($body['email'], FILTER_VALIDATE_EMAIL)) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Invalid email format'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Invalid email format'], 400);
         }
 
         // Validation du mot de passe (minimum 8 caractères)
         if (strlen($body['password']) < 8) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Password must be at least 8 characters long'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Password must be at least 8 characters long'], 400);
         }
 
         // Vérifier si l'email existe déjà
         if ($this->users->findByEmail($body['email'])) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Email already exists'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            return $this->json($response, ['error' => 'Email already exists'], 409);
         }
 
         $isFirstUser = ($this->users->countUsers() === 0);
@@ -81,7 +73,6 @@ class UserController
             'email'     => $body['email'],
             'is_admin'  => $isAdmin
         ], JSON_PRETTY_PRINT));
-
         return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
     }
 
@@ -93,36 +84,24 @@ class UserController
 
         // Vérification des champs requis
         if (!isset($body['email']) || !isset($body['password'])) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Email and password are required'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Email and password are required'], 400);
         }
 
         // Validation basique (anti XSS)
         $email = filter_var(trim($body['email']), FILTER_VALIDATE_EMAIL);
         if (!$email) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Invalid email format'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            return $this->json($response, ['error' => 'Invalid email format'], 400);
         }
 
         // Recherche de l'utilisateur par email
         $user = $this->users->findByEmail($body['email']);
         if (!$user) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Utilisateur avec cet email n\'existe pas'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+            return $this->json($response, ['error' => 'Utilisateur avec cet email n\'existe pas'], 401);
         }
 
         // Vérification du mot de passe
         if (!password_verify($body['password'], $user['pass_hash'])) {
-            $response->getBody()->write(json_encode([
-                'error' => 'Mot de passe incorrect'
-            ]));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(401);
+            return $this->json($response, ['error' => 'Mot de passe incorrect'], 401);
         }
 
         //call pour le procédure stocké de BDD à mettre ici pour faire des logs pour toutes les connexions???
@@ -141,95 +120,49 @@ class UserController
         $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
 
         // Réponse
-        $response->getBody()->write(json_encode([
-            'jwt' => $jwt
-        ], JSON_PRETTY_PRINT));
-
-    return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
-}
-// public function login(Request $request, Response $response): Response 
-// {
-//     // 1. Récupération du header Authorization
-//     $authHeader = $request->getHeaderLine('Authorization');
-
-//     if (!$authHeader || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-//         return $this->jsonError($response, "Missing or invalid Authorization header", 401);
-//     }
-
-//     $jwt = $matches[1];
-
-//     // 2. Décodage du token
-//     try {
-//         $decoded = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
-//     } catch (\Exception $e) {
-//         return $this->jsonError($response, "Invalid token: " . $e->getMessage(), 401);
-//     }
-
-//     // 3. Succès → dashboard
-//     $payload = (array)$decoded;
-
-//     $response->getBody()->write(json_encode([
-//         "success" => true,
-//         "message" => "Token valid",
-//         "user" => $payload,
-//         "redirect" => "/dashboard"
-//     ], JSON_PRETTY_PRINT));
-
-//     return $response->withHeader('Content-Type', 'application/json');
-// }
-
-
-// Petite méthode utilitaire
-private function jsonError(Response $response, string $msg, int $code): Response
-{
-    $response->getBody()->write(json_encode([
-        "success"   => false,
-        "error"     => $msg
-    ], JSON_PRETTY_PRINT));
-    return $response->withHeader('Content-Type', 'application/json')->withStatus($code);
-}
+        return $this->json($response, ['jwt' => $jwt], 200);
+    }
 
 
     // ROUTE DASHBOARD (protégée)
-public function dashboard(Request $request, Response $response)
-{
-    // 1) Essayer de récupérer via Header
-    $authHeader = $request->getHeaderLine('Authorization');
-    $jwt = null;
+    public function dashboard(Request $request, Response $response)
+    {
+        // Essayer de récupérer via Header
+        $authHeader = $request->getHeaderLine('Authorization');
+        $jwt = null;
 
-    if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-        $jwt = $matches[1];
+        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+            $jwt = $matches[1];
+        }
+
+        // Si pas trouvé → essayer GET
+        if (!$jwt) {
+            $params = $request->getQueryParams();
+            $jwt = $params['jwt'] ?? null;
+        }
+
+        // Si toujours rien → erreur
+        if (!$jwt) {
+            return $response->withStatus(401);
+        }
+
+        // Décodage JWT
+        try {
+            $jwt = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
+        } catch (\Exception $e) {
+            return $response->withStatus(403);
+        }
+
+
+        // OK → retourne les données nécessaires
+        $response->getBody()->write(json_encode([
+            "success"   => true,
+            "message"   => "Bienvenue sur la page Main",
+            "email"     => $jwt->email
+        ]));
+        
+        return $response->withHeader("Content-Type", "application/json");
     }
-
-    // 2) Si pas trouvé → essayer GET
-    if (!$jwt) {
-        $params = $request->getQueryParams();
-        $jwt = $params['jwt'] ?? null;
-    }
-
-    // 3) Si toujours rien → erreur
-    if (!$jwt) {
-        return $response->withStatus(401);
-    }
-
-    // 4) Décodage JWT
-    try {
-        $jwt = JWT::decode($jwt, new Key($this->jwtSecret, 'HS256'));
-    } catch (\Exception $e) {
-        return $response->withStatus(403);
-    }
-
-
-    // OK → retourne les données nécessaires
-    $response->getBody()->write(json_encode([
-        "success"   => true,
-        "message"   => "Bienvenue sur la page Main",
-        "email"     => $jwt->email
-    ]));
-    
-    return $response->withHeader("Content-Type", "application/json");
-}
-
 
 
     // GET /users - Liste tous les utilisateurs
@@ -237,11 +170,7 @@ public function dashboard(Request $request, Response $response)
     {
         $data = $this->users->listUsers();
 
-        $payload = json_encode($data, JSON_PRETTY_PRINT);
-        $response->getBody()->write($payload);
-        return $response
-            ->withHeader('Content-Type', 'application/json')
-            ->withStatus(200);
+        return $this->json($response, $data, 200);
     }
 
     // GET /users/{id} - Affiche un utilisateur
@@ -251,12 +180,10 @@ public function dashboard(Request $request, Response $response)
         $user = $this->users->find($id);
 
         if (!$user) {
-            $response->getBody()->write(json_encode(['error' => 'User not found']));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
         }
 
-        $response->getBody()->write(json_encode($user, JSON_PRETTY_PRINT));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+        return $this->json($response, $user, 200);
     }
 
 
@@ -267,14 +194,12 @@ public function dashboard(Request $request, Response $response)
         $user = $this->users->find($id);
 
         if (!$user) {
-            $response->getBody()->write(json_encode(['error' => 'User not found']));
-            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
         }
 
         $this->users->delete($id);
 
-        $response->getBody()->write(json_encode(['message' => 'User deleted successfully']));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+        return $this->json($response, ['message' => 'User deleted successfully'], 200);
     }
 }
 
