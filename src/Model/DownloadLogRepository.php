@@ -21,9 +21,9 @@ class DownloadLogRepository{
      * @param bool $success
      * @param string|null $message
     */
-    public function log(int $shareId, ?int $versionId, string $ip, string $userAgent, bool $success, ?string $message = null): void{
+    public function log(?int $shareId, ?int $versionId, string $ip, string $userAgent, bool $success, ?string $message = null): void{
         $this->db->insert('downloads_log', [
-            'share_id'          => $shareId, 
+            'share_id'          => $shareId,            //peut être null => download direct
             'version_id'        => $versionId, 
             'downloaded_at'     => date('Y-m-d H:i:s'), 
             'ip'                => $ip, 

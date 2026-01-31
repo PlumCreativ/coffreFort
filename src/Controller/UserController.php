@@ -112,11 +112,12 @@ class UserController
             'aud'       => 'coffre-fort-users',    // audience
             'iat'       => time(),                 // date d’émission
             'exp'       => time() + 3600,          // expiration (1h)
-            'user_id'   => $user['id'],        // identifiant utilisateur
+            'user_id'   => $user['id'],            // identifiant utilisateur
             'email'     => $user['email'],
             'is_admin'  => $user['is_admin']
         ];
 
+        // format de token: opaque signé (HMAC SHA‑256 sur payload)
         $jwt = JWT::encode($payload, $this->jwtSecret, 'HS256');
 
         // Réponse

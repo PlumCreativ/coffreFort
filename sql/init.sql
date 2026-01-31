@@ -81,7 +81,7 @@ CREATE INDEX idx_shares_token ON shares(token);
 DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
   `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `share_id` BIGINT UNSIGNED NOT NULL,
+  `share_id` BIGINT UNSIGNED NULL,
   `version_id` BIGINT UNSIGNED NULL,
   `downloaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `ip` VARCHAR(45) NOT NULL,
@@ -98,3 +98,4 @@ CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
 CREATE INDEX idx_shares_token ON shares(token);
 CREATE INDEX idx_downloads_share ON downloads_log(share_id);
 CREATE INDEX idx_file_versions_created_at ON file_versions(created_at);
+

@@ -220,6 +220,7 @@ final class FileCrypto {
 
 
     /**
+     * JOUR 2 => Déchiffrement côté serveur pour simplicité
      * Déchiffrement "tout-en-un" à partir de la ligne file_versions.
      * - calcule AAD (clé + contenu) sur (fileId, version)
      * - unwrap fileKey depuis key_envelope

@@ -100,11 +100,12 @@ body {
     transition: 0.3s;
 }
 
-/* #versions-box,
-#version-picker-wrap,
-#versions-info-only {
+
+#versions-info-only,
+#versions-box,
+#version-picker-wrap{
     display: none;
-} */
+}
 
 .btn-link:hover {
     text-decoration: underline;

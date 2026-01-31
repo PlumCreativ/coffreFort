@@ -22,7 +22,7 @@ externalDocs:
   description: Doc Swagger interactive (charge le YAML depuis GitHub)
   url: https://editor.swagger.io/?url=https://raw.githubusercontent.com/AstrowareConception/Coffre-fort-numerique/refs/heads/main/openapi.yaml
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:9081
     description: Développement local
   - url: https://api.example.com
     description: Production (exemple)
