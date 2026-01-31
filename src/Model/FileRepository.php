@@ -227,14 +227,15 @@ class FileRepository
         ]) ?: [];
     }
 
-    public function listVersionsPaginated(int $fileId, int $page = 1, int $limit =20): array
+    public function listVersionsPaginated(int $fileId, int $limit = 20, $offset = 0): array
     {
-        if($page < 1) $page = 1; 
-        if($limit < 1) $limit = 20;
-        if($limit > 100) $limit = 100;
+        // compter le total
+        $total = $this->getVersionCount($fileId);
 
-        $offset = ($page -1) *$limit;
+        //récuperer la version courante
+        $currentVersion = $this->getMaxVersionForFile($fileId);
 
+        //récuperer les versions paginées      
         $rows = $this->db->select('file_versions', [
             'id',
             'version', 
@@ -247,9 +248,13 @@ class FileRepository
             'LIMIT' => [$offset, $limit]
         ]) ?: [];
 
-        $total = (int)($this->db->count('file_versions', ['file_id' => $fileId]) ?: 0);
-
-        return ['rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit];
+        return [
+            'rows' => $rows, 
+            'total' => $total, 
+            'current_version' => $currentVersion,
+            'limit' => $limit, 
+            'offset' => $offset
+        ];
     }
 
     

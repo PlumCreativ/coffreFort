@@ -1,13 +1,15 @@
 <?php
 namespace App\Controller;
 
+use App\Helpers\RequestHelper;
+use App\Helpers\StorageWriter;
 use App\Model\FileRepository;
 use App\Model\ShareRepository;
 use App\Model\DownloadLogRepository;
 use App\Security\ShareToken;
 use App\Security\AuthService;
 use App\Security\FileCrypto;
-use App\Security\StorageWriter;
+
 
 use Medoo\Medoo;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -162,6 +164,7 @@ class ShareController{
         ], 201);
     }
 
+
     // GET /shares ->liste des partages filtrable, trié et paginé.
     public function listShares(Request $request, Response $response): Response
     {
@@ -218,6 +221,7 @@ class ShareController{
         return $this->json($response, ['shares' => $shares], 200);
     }
 
+
     // POST /shares/{id}/revoke -> révoquer un partage
     public function revokeShare(Request $request, Response $response, array $args):Response
     {
@@ -242,18 +246,24 @@ class ShareController{
     }
 
 
-    // GET /s/{token} ->consultation publique des métadonnées.
+    // GET /s/{token} ->affiche les infos du partage => consultation publique des métadonnées.
     public function publicShare(Request $request, Response $response, array $args): Response {
 
-        $token = (string)$args['token'];
-        if (!$token) return $this->json($response, ['error' => 'Token manquant'], 400);
+        $token = (string)($args['token'] ?? '');
+        if ($token === ''){
+            return $this->json($response, ['error' => 'Token manquant'], 400);
+        } 
 
         $share = $this->shares->findByToken($token);
-        if (!$share) return $this->json($response, ['error' => 'Partage introuvable'], 404);
+        if (!$share) {
+            return $this->json($response, ['error' => 'Partage introuvable'], 404);
+        } 
 
-        if ((int)$share['is_revoked'] === 1) return $this->json($response, ['error' => 'Ce partage a ete revoque'], 403);
-        if ($share['expires_at'] && strtotime($share['expires_at']) <= time()) return $this->json($response, ['error' => 'Ce partage a expire'], 403);
-        if ($share['remaining_uses'] !== null && (int)$share['remaining_uses'] <= 0) return $this->json($response, ['error' => 'Nombre de telechargements atteint'], 403);
+        // Validation du partage (révoqué, expiré, quota)
+        $validationError = $this->validateShare($share);
+        if($validationError){
+            return $this->json($response, ['error' => $validationError['error']], $validationError['code']);
+        }
 
         $fileMeta = null;
 
@@ -270,19 +280,17 @@ class ShareController{
 
             $fileMeta = [
                 'id'                => (int)$file['id'],
-                'user_id'           => (int)$file['user_id'],
-                'folder_id'         => (int)$file['folder_id'],
                 'original_name'     => (string)($file['original_name'] ?? ''),
-                'size'              => isset($file['size']) ? (int)$file['size'] : null,
-                'created_at'        => (string)($file['created_at'] ?? ''),
+                'size'              => (int)$file['size'],
                 'mime'              => (string)($file['mime'] ?? ''),
+                'created_at'        => (string)($file['created_at'] ?? ''),
 
                 'versions_count'    => (int)$versionCount,
                 'current_version'   => $currentVersion ?[
-                    'id'         => (int)$currentVersion['id'],
-                    'version'    => (int)$currentVersion['version'],
+                    'id'            => (int)$currentVersion['id'],
+                    'version'       => (int)$currentVersion['version'],
                     // meta.file.current_version.created_at
-                    'created_at' => (string)$currentVersion['created_at'],
+                    'created_at'    => (string)$currentVersion['created_at'],
                 ] : null,
             ];
         }else if($share['kind'] === 'folder'){
@@ -290,21 +298,48 @@ class ShareController{
         }
 
         return $this->json($response, [
-            'id'                => (int)$share['id'],
-            'kind'              => $share['kind'],
-            'target_id'         => (int)$share['target_id'],
-            'label'             => $share['label'],
-            'expires_at'        => $share['expires_at'],
-            'max_uses'          => $share['max_uses'],
-            'remaining_uses'    => $share['remaining_uses'],
-            'is_revoked'        => (int)$share['is_revoked'],
-            'allow_public_version_pick' => (int)($share['allow_fixed_versions'] ?? 0) === 1,
+            'id'                    => (int)$share['id'],
+            'kind'                  => $share['kind'],
+            'target_id'             => (int)$share['target_id'],
+            'label'                 => $share['label'],
+            'expires_at'            => $share['expires_at'],
+            'max_uses'              => $share['max_uses'] !== null ? (int)$share['max_uses'] : null,
+            'remaining_uses'        => $share['remaining_uses'] !== null ? (int)$share['remaining_uses'] : null,
+            'is_revoked'            => (bool)$share['is_revoked'],
+            'allow_fixed_versions'  => (bool)$share['allow_fixed_versions'],
+            'created_at'            => $share['created_at'],
 
-            'file'              => $fileMeta,
+            'file'                  => $fileMeta,
+
+            // URLs de téléchargement
+            'download_url'          => '/s/' . $token . '/download',
+            'versions_url'          => (bool)$share['allow_fixed_versions'] ? '/s/' . $token . '/versions' : null,
         ], 200);
     }
 
+    /*************************** function private ***********************************/
+
+    private function validateShare(array $share): ?array
+    {
+        if ((int)$share['is_revoked'] === 1){
+            return ['error' => 'Ce partage a été révoqué', 'code' => 403];
+        } 
+        if ($share['expires_at'] && strtotime($share['expires_at']) <= time()) {
+            return ['error' => 'Ce partage a expiré', 'code' => 410];
+        }
+            
+        if ($share['remaining_uses'] !== null && (int)$share['remaining_uses'] <= 0) {
+            return ['error' => 'Nombre de téléchargements atteint', 'code' => 429];
+        } 
+        return null;
+    }
+
+    /********************************************************************************/
+
+
     //GET /s/{token}/download  =>téléchargement, journalisation et décrémentation atomique de remaining_uses.
+    // télécharger la version courante (par défaut)
+    // télécharger une version spécifique (si autorisé)
     public function publicDownload(Request $request, Response $response, array $args):Response {
 
         $token = (string)($args['token'] ?? '');
@@ -312,10 +347,9 @@ class ShareController{
             return $this->json($response, ['error' => 'Token manquant'], 400);
         }
         
-        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0';
-        $userAgent = $request->getHeaderLine('User-Agent') ? : 'unknown';
+        $ip = RequestHelper::getClientIp($request);
+        $userAgent = RequestHelper::getUserAgent($request);
 
-        $success = false;
         $message = null;
         $shareId = 0;
 
@@ -325,33 +359,33 @@ class ShareController{
         $share = $this->shares->findByToken($token);
         if($share === null || !$share){
             $message = 'Token de partage invalide';
-            $this->logs->log(0, null, $ip, $userAgent, false, $message);
+            $this->logs->log($shareId, null, $ip, $userAgent, false, $message);
             return $this->json($response,['error' => $message], 404);
         }
 
         $shareId = (int)$share['id'];
-
         $versionRow = null;
 
         try{
-            if((int)$share['is_revoked'] === 1){
-                $message = 'Partage revoque';
-                return $this->json($response, ['error' => $message], 403);
+
+            $validationError = $this->validateShare($share);
+            if($validationError){
+                $this->logs->log($shareId, null, $ip, $userAgent, false, $validationError['error'] . ' ( ' . $validationError['code'] . ' )');
+                 return $this->json($response, ['error' => $validationError['error']], $validationError['code']);
             }
 
-            if(!empty($share['expires_at']) && strtotime($share['expires_at']) <= time()){
-                $message = 'Partage expire';
-                return $this->json($response, ['error' => $message], 403);
-            }
-
+            //vérif : share secret
             if($this->shareSecret === ''){
                 $message = 'SHARE_SECRET manquant sur le serveur';
+                $this->logs->log($shareId, null, $ip, $userAgent, false, $message);
                 return $this->json($response, ['error' => $message], 500);
             }
 
+            //vérif: signature
             $expectedSig = ShareToken::sign($this->shareSecret, $token, $shareId);
             if(!ShareToken::equals($expectedSig, (string)$share['token_sig'])){
                 $message = 'Signature de partage invalide';
+                $this->logs->log($shareId, null, $ip, $userAgent, false, $message);
                 return $this->json($response, ['error' => $message], 403);
             }
 
@@ -366,9 +400,11 @@ class ShareController{
             $file = $this->files->find($fileId);
             if(!$file){
                 $message = 'Fichier partage introuvable';
+                $this->logs->log($shareId, null, $ip, $userAgent, false, $message);
                 return $this->json($response, ['error' => $message], 404);
             }
 
+            //pour supporter '?v=3'....
             $params = $request->getQueryParams();
             $requestedVersion = isset($params['v']) ? (int)$params['v'] : null;
             
@@ -378,21 +414,27 @@ class ShareController{
                 // interdire si le share n'autorise pas
                 if((int)($share['allow_fixed_versions'] ?? 0) !== 1){
                     $message = 'Les versions figées (?v=) ne sont pas autorisées pour ce lien';
+                    $this->logs->log($shareId, null, $ip, $userAgent, false, $message);
                     return $this->json($response, ['error' => $message], 403);
                 }
                 
                 $versionRow = $this->files->getVersionRow($fileId, $requestedVersion);
-
+                
                 if(!$versionRow){
-                    $message = "Version demandee introuvable";
+                    $message = "Version demandée introuvable";
+                    $this->logs->log($shareId, $versionId, $ip, $userAgent, false, $message);
                     return $this->json($response, ['error' => $message], 404);
                 }
-
+                    
+                $versionId = (int)($versionRow['id'] ?? 0);
             } else {
-                $versionRow = $this->files->getCurrentVersionRow($fileId);
-            }
 
-            //$versionRow = $this->files->getCurrentVersionRow($fileId);
+                //version courant par défaut
+                $versionRow = $this->files->getCurrentVersionRow($fileId);
+                if($versionRow){
+                    $versionId = (int)($versionRow['id'] ?? 0);
+                }
+            }
 
             //Fichier CHIFFRÉ (a des versions dans file_versions)
             if($versionRow !== null){
@@ -416,19 +458,33 @@ class ShareController{
                 }
 
                 //Lire le fichier chiffré
-                $ciphertext = file_get_contents($path);
-                if ($ciphertext === false) {
-                    $message = "Impossible de lire le fichier chiffre";
-                    return $this->json($response, ['error' => $message], 500);
+                //ancien code
+                // $ciphertext = file_get_contents($path);
+                // if ($ciphertext === false) {
+                //     $message = "Impossible de lire le fichier chiffre";
+                //     return $this->json($response, ['error' => $message], 500);
+                // }
+
+                // Lire le fichier chiffré par stream
+                try{
+                    $ciphertext = StorageWriter::readBinary($path);
+                }catch (\RuntimeException $e){
+                    $this->logs->log($shareId, $versionId, $ip, $userAgent, false, 'Impossible de lire le fichier chiffré (500)');
+                    return $this->json($response, ['error' => 'Impossible de lire le fichier chiffré'], 500);
                 }
 
+              
                 try{
                     $kek = FileCrypto::normalizeKek($_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '');
                     $decrypte = FileCrypto::decryptFromStorage($ciphertext, $versionRow, $kek, $fileId);
                     $plaintext = $decrypte['plaintext'];
+
+                    // Libérer la mémoire
+                    unset($ciphertext);
                 }catch (\Throwable $e){
                     $message = $e->getMessage();
                     error_log('Decrypt failed (publicDownload): ' . $message);
+                    $this->logs->log($shareId, $versionId, $ip, $userAgent, false, 'Échec déchiffrement (500): ' . $message);
                     return $this->json($response, ['error' => $message], 500);
                 }
 
@@ -437,16 +493,17 @@ class ShareController{
                 if ($share['remaining_uses'] !== null) {
                     $ok = $this->shares->consumeUse($shareId);
                     if (!$ok) {
-                        $message = 'Nombre de telechargements atteint';
-                        return $this->json($response, ['error' => $message], 403);
+                        $message = 'Nombre de téléchargements atteint';
+                        $this->logs->log($shareId, $versionId, $ip, $userAgent, false, $message);
+                        return $this->json($response, ['error' => $message], 429); //(too many request)
                     }
                 }
 
                 // renvoyer le PLAINTEXT  et pas le fichier chiffré!!!!
                 $response->getBody()->write($plaintext);
 
-                $success = true;
                 $message = 'Telechargement reussi';
+                $this->logs->log($shareId, $versionId, $ip, $userAgent, true, $message);
 
                 return $response
                     ->withHeader('Content-Type', $file['mime'])
@@ -477,7 +534,8 @@ class ShareController{
                 $ok = $this->shares->consumeUse($shareId);
                 if (!$ok) {
                     $message = 'Nombre de telechargements atteint';
-                    return $this->json($response, ['error' => $message], 403);
+                    $this->logs->log($shareId, $versionId, $ip, $userAgent, false, $message);
+                    return $this->json($response, ['error' => $message], 403); //ou 429
                 }
             }
 
@@ -485,17 +543,20 @@ class ShareController{
             $stream = fopen($path, 'rb');
             if ($stream === false) {
                 $message = "Impossible d'ouvrir le fichier";
+                $this->logs->log($shareId, null, $ip, $userAgent, false, $message);
                 return $this->json($response, ['error' => $message], 500);
             }
 
             $body = $response->getBody();
             while(!feof($stream)){
-                $body->write(fread($stream, 8192));
+                $chunk = fread($stream, 8192);
+                if ($chunk === false) break;
+                $body->write($chunk);
             }
             fclose($stream);
-
-            $success = true;
+            
             $message = 'Telechargement reussi';
+            $this->logs->log($shareId, null, $ip, $userAgent, true, $message);
 
             return $response
                 ->withHeader('Content-Type', $file['mime'])
@@ -507,18 +568,11 @@ class ShareController{
             error_log('Exception dans publicdownload: ' . $e->getMessage());
             $message = 'Erreur serveur: ' . $e->getMessage();
             return $this->json($response, ['error' => $message], 500);
-
-        }finally{
-            if ($message === null) {
-                $message = $success ? 'Telechargement reussi' : 'Erreur inconnue';
-            }
-            //log le téléchargement
-            $this->logs->log($shareId, $versionId, $ip, $userAgent, $success, $message);
         }
     }
 
 
-    // GET /s/{token}/versions  => liste publique des versions si c'est autorisé
+    // GET /s/{token}/versions  => liste les versions disponibles: liste publique des versions si c'est autorisé
     public function publicShareVersions(Request $request, Response $response, array $args):Response 
     {
         $token = (string)($args['token'] ?? '');
@@ -531,17 +585,10 @@ class ShareController{
             return $this->json($response, ['error' => 'Partage introuvable'], 404);
         }
 
-        if ((int)$share['is_revoked'] === 1){
-            return $this->json($response, ['error' => 'Ce partage a ete revoque'], 403);
-        } 
-            
-        if ($share['expires_at'] && strtotime($share['expires_at']) <= time()){
-            return $this->json($response, ['error' => 'Ce partage a expire'], 403);
+        $validationError = $this->validateShare($share);
+        if($validationError){
+                return $this->json($response, ['error' => $validationError['error']], $validationError['code']);
         }
-
-        if ($share['remaining_uses'] !== null && (int)$share['remaining_uses'] <= 0){
-            return $this->json($response, ['error' => 'Nombre de telechargements atteint'], 403);
-        } 
 
         //supporte que le file
         if($share['kind'] !== 'file'){

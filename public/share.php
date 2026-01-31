@@ -52,35 +52,44 @@
                     <p class= "py-1 pt-3"><strong>Taille du fichier :</strong> <span id="file-size"></span></p>
                     <p class= "py-1"><strong>Créé le :</strong> <span id="file-date"></span></p>
 
+                    <!-- badge et version courant => à afficher si 'versions_count > 1'-->
                     <div id= "versions-box" class="py-1">
-                        <span class="badge text-bg-secondary" id="version-badge"> Versions </span>
-                        <span class= "ms-2"><strong>Version courante : </strong>
+                        <span class="badge bg-info text-dark me-2" id="version-badge">
+                            <i class="bi bi-clock-history"></i> <span id="version-count">0</span> versions 
+                        </span>
+                        <span class="text-muted">
+                            <strong>Version courante : </strong>
                             <span class="" id= "current-version-date"> - </span>
                         </span>
                     </div>
 
                     <!-- sélécteur => quand ça va être autorisé -->
-                    <div id="version-picker-wrap" class="mt-2">
-                        <label for="version-picker" class="form-label mb-1">Choisir une version</label>
-                        <select name="version-picker" id="version-picker" class="form-select form-select-sm"></select> 
-                        <div class="form-text" id= "version-picker-helper">
-                            <p>Certaines versions peuvent ne pat être disponible publiquement.</p>
+                    <div id="version-picker-wrap" class="mt-3">
+                        <label for="version-picker" class="form-label mb-1">
+                            <i class="bi bi-list-ol"></i> Choisir une version à télécharger
+                        </label>
+                        <select id="version-picker" class="form-select form-select-sm">
+                            <option value="">Version courante</option>
+                        </select> 
+                        <div class="form-text text-muted" >
+                            Sélectionnez une version spécifique à télécharger.
                         </div>
+                        <!-- <div class="form-text" id= "version-picker-helper">
+                            <p>Certaines versions peuvent ne pat être disponible publiquement.</p>
+                        </div> -->
                     </div>
 
-                    <div class="mt-2" id="versions-info-only">
+                    <!-- message si versions existent mais sélecteur est désactivé -->
+                    <div class="mt-2 alert alert-info py-2" id="versions-info-only">
                         <small class="text-muted">
-                            Plusieurs versions existent, mais ce lien public ne permet pas de choisir une version.
+                            <i class="bi bi-info-cercle"></i>
+                            Ce fichier possède plusieurs versions, mais ce lien ne permet pas de choisir une version spécifique.
                         </small>
                     </div>
 
-                    <!-- expiration -->
+                    <!-- expiration et téléchargement restant-->
                     <p class= "py-1"><strong>Expiration :</strong> <span id="expires-left">-</span></p>
-
-                    <!-- optionnel: restant => implémenter côté JS plus tard -->
-                    <!-- <p><strong>Restant :</strong> <span id="uses-left">-</span></p> -->
-
-
+                    <p class= "py-1"><strong> Téléchargement restant : </strong> <br><span id="uses-left">-</span></p>
                 </div>
 
                 <div class="file-actions d-flex justify-content-center">

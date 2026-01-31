@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: coffreFort-web
-    ports:
+    ports: 
       - "9081:80"
     volumes:
       # Monter le code source dans le conteneur => à monte précisément ce dont Apache a besoin
