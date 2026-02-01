@@ -89,7 +89,7 @@ class ShareController{
         }
  
         if($maxUses !== null && $maxUses < 1){
-            return $this->json($response, ['error' => 'max_uses doit etre >= 1'], 400);
+            return $this->json($response, ['error' => 'max_uses doit être >= 1 ou null (illimité)'], 400);
         }
 
         //valider le owner
@@ -129,11 +129,11 @@ class ShareController{
             'kind'                   => $kind,
             'target_id'              => $targetId,
             'token'                  => $token,
-            'token_sig'              => str_repeat('0', 64),
+            'token_sig'              => str_repeat('0', 64), //temporaire
             'label'                  => $label,
             'expires_at'             => $expiresAtSql,
             'max_uses'               => $maxUses,
-            'remaining_uses'         => $maxUses,
+            'remaining_uses'         => $maxUses,           //initialiser à max_uses
             'allow_fixed_versions'   => $allowFixedVersions,
         ]);
 
@@ -154,6 +154,7 @@ class ShareController{
             'kind'                  => $kind,
             'target_id'             => $targetId,
             'label'                 => $label,
+            'token'                 => $token,
             'expires_at'            => $expiresAtSql,
             'max_uses'              => $maxUses,
             'remaining_uses'        => $maxUses,
@@ -178,8 +179,8 @@ class ShareController{
 
         $params = $request->getQueryParams();
         $targetId = isset($params['target_id']) ? (int)$params['target_id'] : null;
-        $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 10;
-        // $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 20;
+        // $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 10;
+        $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 20;
         $offset = isset($params['offset']) ? max(0, (int)$params['offset']) : 0;
 
         $where = ['user_id' => $userId];
@@ -200,11 +201,12 @@ class ShareController{
                 $file = $this->db->get('files', 'original_name', ['id' => (int)$share['target_id']]);
                 
                 $share['file_name'] = $file ?: 'Fichier supprime';
+
             }elseif($share['kind'] === 'folder'){
 
                 //récuperer le nom du dossier
-                $file = $this->db->get('folders', 'name', ['id' => (int)$share['target_id']]);
-                $share['file_name'] = $file ?: 'Dossier supprime';
+                $folder = $this->db->get('folders', 'name', ['id' => (int)$share['target_id']]);
+                $share['folder_name'] = $folder ?: 'Dossier supprimé';
             }else{
                 $share['file_name'] = 'Inconnu';
             } 
@@ -218,14 +220,65 @@ class ShareController{
         }
         unset($share);
 
-        return $this->json($response, ['shares' => $shares], 200);
+        //pour la pagination
+        $total = $this->db->count('shares', [ 'AND' => $where]);
+
+        return $this->json($response, [
+            'shares' => $shares,
+            'total' => $total,      
+            'limit' => $limit,      
+            'offset' => $offset     
+        ], 200);
     }
 
 
-    // POST /shares/{id}/revoke -> révoquer un partage
+    //GET /shares/{id} - Détails d'un partage (pour le propriétaire)
+    public function showShare(Request $request, Response $response, array $args): Response
+    {
+        $shareId = (int)($args['id'] ?? 0);
+
+        if ($shareId <= 0) {
+            return $this->json($response, ['error' => 'ID invalide'], 400);
+        }
+
+        // authentification
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        // Récupérer le partage
+        $share = $this->shares->findById($shareId);
+
+        if (!$share) {
+            return $this->json($response, ['error' => 'Partage introuvable'], 404);
+        }
+
+        // Vérifier que l'utilisateur est propriétaire
+        if ((int)$share['user_id'] !== $userId) {
+            return $this->json($response, ['error' => 'Accès interdit'], 403);
+        }
+
+        // Enrichir avec l'URL
+        $token = (string)($share['token'] ?? '');
+        // $publicPath = '/s/' . $token; 
+        $publicPath = '/share.php?token=' . $token;
+        $share['url'] = $this->publicBaseUrl ? ($this->publicBaseUrl . $publicPath) : $publicPath;
+
+        return $this->json($response, $share, 200);
+    }
+
+
+    // PATCH /shares/{id}/revoke -> révoquer un partage
     public function revokeShare(Request $request, Response $response, array $args):Response
     {
-        $shareId = (int)$args['id'];
+        $shareId = (int)($args['id'] ?? 0);
+
+        if ($shareId <= 0) {
+            return $this->json($response, ['error' => 'ID invalide'], 400);
+        }
 
         try{
             $user = $this->auth->getAuthenticatedUserFromToken($request);
@@ -237,11 +290,36 @@ class ShareController{
 
         $share = $this->shares->findById($shareId);
 
-        if(!$share || (int)$share['user_id'] !== $userId){
-            return $this->json($response, ['error' => 'Partage introuvable ou non autorise'], 403);
+        if (!$share) {
+            return $this->json($response, ['error' => 'Partage introuvable'], 404);
         }
 
-        $this->shares->revoke($shareId);
+        // vérifier que l'utilisateur est propriétaire
+        if ((int)$share['user_id'] !== $userId) {
+            return $this->json($response, ['error' => 'Accès interdit'], 403);
+        }
+
+        //vérifier s'il est déjà révoqué
+        if((int)$share['is_revoked'] === 1){
+            return $this->json($response, ['message' => 'Ce partage est déjà révoqué'], 200);
+        }
+
+        //révoquer
+        try {
+            $this->shares->revoke($shareId);
+
+            return $this->json($response, [
+                'message' => 'Partage révoqué avec succès',
+                'id' => $shareId
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->json($response, [
+                'error' => 'Erreur lors de la révocation',
+                'details' => $e->getMessage()
+            ], 500);
+        }
+        
         return $this->json($response, ['message' => 'Partage revoque avec succes'], 200);
     }
 
@@ -275,7 +353,7 @@ class ShareController{
                 return $this->json($response, ['error' => 'Fichier partage introuvable'], 404);
             }
 
-            $versionCount = $this->files->getVersionCount($fileId);
+            $versionsCount = $this->files->getVersionCount($fileId);
             $currentVersion = $this->files->getCurrentVersionMeta($fileId);
 
             $fileMeta = [
@@ -285,7 +363,7 @@ class ShareController{
                 'mime'              => (string)($file['mime'] ?? ''),
                 'created_at'        => (string)($file['created_at'] ?? ''),
 
-                'versions_count'    => (int)$versionCount,
+                'versions_count'    => (int)$versionsCount,
                 'current_version'   => $currentVersion ?[
                     'id'            => (int)$currentVersion['id'],
                     'version'       => (int)$currentVersion['version'],
@@ -315,6 +393,52 @@ class ShareController{
             'download_url'          => '/s/' . $token . '/download',
             'versions_url'          => (bool)$share['allow_fixed_versions'] ? '/s/' . $token . '/versions' : null,
         ], 200);
+    }
+
+
+    public function deleteShare(Request $request, Response $response, array $args): Response {
+
+        $shareId = (int)($args['id'] ?? 0);
+
+        if ($shareId <= 0) {
+            return $this->json($response, ['error' => 'ID invalide'], 400);
+        }
+
+        try{
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+        }catch(\Exception $e){
+            $code = (int)($e->getCode() ? : 401);
+            return $this->json($response, ['error' => $e->getMessage()], $code);
+        }
+
+        // récuperer le partage
+        $share = $this->shares->findById($shareId);
+
+        if (!$share) {
+            return $this->json($response, ['error' => 'Partage introuvable'], 404);
+        }
+
+        // vérifier que l'utilisateur est propriétaire
+        if ((int)$share['user_id'] !== $userId) {
+            return $this->json($response, ['error' => 'Accès interdit'], 403);
+        }
+
+        // Supprimer
+        try {
+            $this->shares->delete($shareId);
+
+            return $this->json($response, [
+                'message' => 'Partage supprimé avec succès',
+                'id' => $shareId
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->json($response, [
+                'error' => 'Erreur lors de la suppression',
+                'details' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /*************************** function private ***********************************/

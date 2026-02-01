@@ -50,6 +50,12 @@ class ShareRepository{
         ]);  
     }
 
+    public function delete(int $id): void {
+        $this->db->delete('shares', [
+            'id' => $id
+        ]);
+    }
+
     //pas utilisé
     public function decrementRemainingUses(int $id):bool {
         $stmt = $this->db->update('shares',[ 
