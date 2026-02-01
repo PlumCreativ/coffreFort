@@ -71,7 +71,10 @@ $app->post('/logout', [$userController,'logout']);
 //route pour les shares
 $app->post('/shares', [$shareController, 'createShare']);                   //Créer un lien de partage = à faire pour les folders + si je remplis pas maxuses ou date expiration
 $app->get('/shares', [$shareController, 'listShares']);                     //Lister les liens de partage de l'utilisateur = ok
-$app->post('/shares/{id}/revoke', [$shareController, 'revokeShare']);       //Révoquer immédiatement un lien de partage = ok
+$app->get('/shares/{id}', [$shareController, 'showShare']);                 // Détails d'un partage (pour le propriétaire)
+$app->delete('/shares/{id}', [$shareController, 'deleteShare']);            //supprimer le lien de partage
+$app->patch('/shares/{id}/revoke', [$shareController, 'revokeShare']);       //Révoquer immédiatement un lien de partage = ok
+
 $app->get('/s/{token}', [$shareController, 'publicShare']);                 // Infos publiques associées à un token de partage (page publique) = à faire pour les folders
 $app->get('/s/{token}/download', [$shareController, 'publicDownload']);     //=> (navigateur) déchiffré OK   //télécharger le fichier = ok
 // $app->get('/s/{token}/download?v=2', [$shareController, '']);            //télécharger une version spécifique

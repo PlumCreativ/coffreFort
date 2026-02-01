@@ -252,7 +252,8 @@ class FileController {
                 'version'       => (int)$row['version'],
                 'size'          => (int)$row['size'],
                 'created_at'    => $row['created_at'],
-                'checksum'      =>  substr($checksumHex, 0, 16) . '...', // Plus long pour la liste complète
+                // 'checksum'      =>  substr($checksumHex, 0, 16) . '...', // Plus long pour la liste complète
+                'checksum'      => $checksumHex,
                 'is_current'    => (int)$row['version'] === $currentVersion
             ];
         },$result['rows']);
