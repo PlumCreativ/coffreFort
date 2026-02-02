@@ -35,17 +35,19 @@ $userController = new UserController($database);
 $shareController = new ShareController($database);
 
 // routes pour les fichiers
-$app->get('/files', [$fileController, 'list']);                                     //Lister les fichiers par dossier = ok
+$app->get('/files', [$fileController, 'list']); // JO                                    //Lister les fichiers par dossier = ok
+$app->get('/files?folder={id}', [$fileController, 'list']); //JO
 $app->get('/filesPaginated', [$fileController, 'listPaginated']);
-$app->get('/files/{id}', [$fileController, 'show']);                                //Détails d'un fichier avec versions = ok
-$app->get('/files/{id}/download', [$fileController, 'download']);                   //=> (mainController) chiffré OK  //téléchargement direct (propriètaire)(version courante) = ok
+$app->get('/files/{id}', [$fileController, 'show']); //JO                               //Détails d'un fichier avec le dernier version = ok
+$app->get('/files/{id}/download', [$fileController, 'download']); //JO                 //=> (mainController) chiffré OK  //téléchargement direct (propriètaire)(version courante) = ok
 // GET /files?folder={id}  => à vérifier comment je fais 
 
-$app->post('/files', [$fileController, 'upload']);  //=> (mainController) chiffré OK    // Uploader un fichier (crée la version 1 chiffrée) =  ok
+$app->post('/files', [$fileController, 'upload']);                                     //=> (mainController) chiffré OK    // Uploader un fichier (crée la version 1 chiffrée) =  ok
 $app->delete('/files/{id}', [$fileController, 'delete']);                               //Supprimer un fichier (logique ou totale selon politique) = ok
-$app->put('/files/{id}', [$fileController, 'renameFile']);  //renommage
-$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']); //=> (java:FileDetailsController) déchiffré OK   //Ajouter une nouvelle version au fichier = à vérifier
-$app->get('/files/{id}/versions', [$fileController, 'listVersions']);            //liste complète paginée des versions = OK
+$app->put('/files/{id}', [$fileController, 'renameFile']);                              //renommage
+$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']);              //=> (java:FileDetailsController) déchiffré OK   //Ajouter une nouvelle version au fichier = à vérifier
+$app->get('/files/{id}/versions', [$fileController, 'listVersions']); //JO               //liste complète paginée des versions = OK
+$app->delete('/files/{file_id}/versions/{id}', [$fileController, 'deleteVersion']); //JO
 $app->get('/files/{id}/versions/{version}/download', [$fileController, 'downloadVersion']); //=> (FileDetailsController) déchiffré OK //téléchargement version (propriètaire)
 
 //Stats / quota / activité
@@ -55,18 +57,18 @@ $app->get('/me/quota', [$fileController, 'meQuota']);                       //R�
 $app->get('/me/activity', [$fileController, 'meActivity']);                 //Derniers événements de l'utilisateur = à vérifier si je l'utilise!????!!! openapi 540
 
 // routes pour les folders
-$app->get('/folders', [$fileController, 'listFolders']);                    //Lister les dossiers de l'utilisateur courant (racine par défaut) = ok
-$app->post('/folders', [$fileController, 'createFolder']);                  //Créer un dossier = modifier!! => à mettre dedans  le vérif propriétaire
-$app->delete('/folders/{id}', [$fileController, 'deleteFolder']);           //Supprimer un dossier = modifier => à mettre dedans  le vérif propriétaire
-$app->put('/folders/{id}', [$fileController, 'renameFolder']);              //renommage
+$app->get('/folders', [$fileController, 'listFolders']); //JO                   //Lister les dossiers de l'utilisateur courant (racine par défaut) = ok
+$app->post('/folders', [$fileController, 'createFolder']);//JO                  //Créer un dossier = modifier!! = ok
+$app->delete('/folders/{id}', [$fileController, 'deleteFolder']);//JO           //Supprimer un dossier = modifier = ok
+$app->put('/folders/{id}', [$fileController, 'renameFolder']);//JO              //renommage = ok
 
 // routes pour les users
-$app->get('/users', [$userController, 'list']);
-$app->get('/users/{id}', [$userController, 'show']);
-$app->delete('/users/{id}', [$userController, 'delete']);
-$app->post('/auth/register', [$userController, 'register']);                //Créer un compte utilisateur = ok
-$app->post('/auth/login', [$userController, 'login']);                      //Authentifier un utilisateur et obtenir un JWT = ok
-$app->post('/logout', [$userController,'logout']);
+$app->get('/users', [$userController, 'list']);//JO
+$app->get('/users/{id}', [$userController, 'show']);//JO
+$app->delete('/users/{id}', [$userController, 'delete']);//JO
+$app->post('/auth/register', [$userController, 'register']);//JO                //Créer un compte utilisateur = ok
+$app->post('/auth/login', [$userController, 'login']); //JO                     //Authentifier un utilisateur et obtenir un JWT = ok
+$app->post('/logout', [$userController,'logout']); // il n'y a pas
 
 //route pour les shares
 $app->post('/shares', [$shareController, 'createShare']);                   //Créer un lien de partage = à faire pour les folders + si je remplis pas maxuses ou date expiration
@@ -75,8 +77,8 @@ $app->get('/shares/{id}', [$shareController, 'showShare']);                 // D
 $app->delete('/shares/{id}', [$shareController, 'deleteShare']);            //supprimer le lien de partage
 $app->patch('/shares/{id}/revoke', [$shareController, 'revokeShare']);       //Révoquer immédiatement un lien de partage = ok
 
-$app->get('/s/{token}', [$shareController, 'publicShare']);                 // Infos publiques associées à un token de partage (page publique) = à faire pour les folders
-$app->get('/s/{token}/download', [$shareController, 'publicDownload']);     //=> (navigateur) déchiffré OK   //télécharger le fichier = ok
+$app->get('/s/{token}', [$shareController, 'publicShare']);//OK              // Infos publiques associées à un token de partage (page publique) = à faire pour les folders
+$app->get('/s/{token}/download', [$shareController, 'publicDownload']);//OK     //=> (navigateur) déchiffré OK   //télécharger le fichier = ok
 // $app->get('/s/{token}/download?v=2', [$shareController, '']);            //télécharger une version spécifique
 //$app ->post('/s/{token}/download', [$shareController, ??????????]);        //Télécharger via un lien public signé = à faire!!!! openapi 489  (Flux binaire via lien public)
 

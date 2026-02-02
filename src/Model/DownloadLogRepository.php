@@ -52,9 +52,8 @@ class DownloadLogRepository{
             'shares.user_id',
         ],[
             'shares.user_id' => $userId,
-            'ORDER' => ['dl.downloaded_at' => 'DESC'],
-            'LIMIT' => [$offset, $limit]
-
+            'ORDER'          => ['dl.downloaded_at' => 'DESC'],
+            'LIMIT'          => [$offset, $limit]
         ]);
     }
 

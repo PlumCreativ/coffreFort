@@ -12,112 +12,76 @@ class FileRepository
         $this->db = $db;
     }
 
+    //liste tous les fichiers
     public function listFiles(): array
     {
         return $this->db->select('files', '*');
     }
 
-    public function listFilesByFolder(int $folderId): array
+    //retourne tous les caractéristiques des fichiers d'un dossier appartenant à un user
+    public function listFilesByFolder(int $folderId, int $userId): array
     {
-        return $this->db->select('files', '*', ['folder_id' => $folderId]);
-    }
-
-    public function listFoldersByUser(int $userId): array
-    {
-        return $this->db->select('folders', [
-            'id',
-            'user_id',
-            'parent_id',
-            'name',
-            'created_at'
-        ], [
+        return $this->db->select('files', '*', [
+            'folder_id' => $folderId,
             'user_id'   => $userId,
-            'ORDER'     => ['name' => 'ASC']
+            'ORDER'     => ['updated_at' => 'DESC']
         ]);
     }
 
+    //retourne tous les caractéristiques des fichiers d'un user
+     public function listFilesByUser(int $userId): array
+    {
+        return $this->db->select('files', '*', [
+            'user_id'   => $userId,
+            'ORDER'     => ['updated_at' => 'DESC']
+        ]);
+    }
+
+    //retourne tous les caractéristiques d'un fichierspécifique
     public function find(int $id): ?array
     {
         return $this->db->get('files', '*', ['id' => $id]) ?: null;
     }
 
+    //crée un fichier
     public function create(array $data): int
     {
         $this->db->insert('files', $data);
         return (int)$this->db->id();
     }
 
+    //supprime un fichier
     public function delete(int $id): void
     {
         $this->db->delete('files', ['id' => $id]);
     }
 
+    //compte le nbre des fichiers
     public function countFiles(): int
     {
         return (int)$this->db->count('files');
     }
 
+    //compte le nbre de fichier d'un user
     public function countFilesByUser(int $userId): int
     {
         return (int)($this->db->count('files', ['user_id' => $userId]) ?: 0);
     }
 
-     public function totalSize(): int
+    //retourne le totel size des fichiers
+    public function totalSize(): int
     {
         return (int)$this->db->sum('files', 'size') ?: 0;
     }
 
+    //retourne le totel size des fichiers d'un user
     public function totalSizeByUser(int $userId): int 
     {
         return (int)($this->db->sum('files', 'size', ['user_id' => $userId]) ?: 0);
     }
 
-    
-    // public function quotaBytes(int $userId): int ??? à supprimer??
-    // {
-    //     return (int)$this->db->get('users', 'quota_total', ['id' => $userId]);
-    // }
 
-    public function userQuotaTotal(int $userId): int 
-    {
-        // évite des erreurs en cas d'absence du mise à jour de "quota_used"
-        return (int)($this->db->get('users', 'quota_total', ['id' => $userId]) ?: 0);
-    }
-
-    // Met à jour le quota_total d'un utilisateur
-    public function updateUserQuota(int $userId, int $quotaTotal): void
-    {
-        $this->db->update('users', [
-            'quota_total'   => $quotaTotal
-        ], [
-            'id'            => $userId
-        ]);
-    }
-
-    // Met à jour le quota_used d'un utilisateur
-    public function updateQuotaUsed(int $userId, int $quotaUsed): void
-    {
-        $this->db->update('users', [
-            'quota_used' => $quotaUsed
-        ], [
-            'id'         => $userId
-        ]);
-    }
-
-    // Récupère les infos complètes d'un utilisateur
-    public function getUser(int $userId): ?array
-    {
-        return $this->db->get('users', [
-            'id',
-            'email',
-            'quota_total',
-            'quota_used',
-            'is_admin',
-            'created_at'
-        ], ['id' => $userId]) ?: null;
-    }
-
-    // derniers uploads de user
+    // derniers uploads d'un user
     public function recentUploads(int $userId, int $limit = 20): array
     {
          return $this->db->select('files', '*', [
@@ -127,7 +91,7 @@ class FileRepository
         ]);
     }
 
-    // Derniers downloads des shares du user
+    // Derniers downloads des shares d'un user
     public function recentDownloads(int $userId, int $limit = 20): array
     {
         // downloads_log -> shares (pour filtrer sur owner) -> file_versions -> files (nom du fichier)
@@ -153,6 +117,7 @@ class FileRepository
         ]);
     }
 
+    //renommer un fichier
     public function renameFile(int $id, string $newName): bool
     {
         $count = $this->db->update('files', [
@@ -186,26 +151,29 @@ class FileRepository
     }
 
 
-    //======= pour le versionnage =================
+    //============================= pour le versionnage ========================================
 
-    // pour récuperer aussi le "current version"
+    //récuperer le max de version => le "current version"
     public function getMaxVersionForFile(int $fileId): int
     {
         $max = $this->db->max('file_versions', 'version', ['file_id' => $fileId]);
         return (int)($max ?: 0);
     }
 
+    //crée une nouvelle versions
     public function createFileVersion(array $data): int
     {
         $this->db->insert('file_versions', $data);
         return (int)$this->db->id();
     }
 
+    // mise à jour les données d'un fichier donné
     public function updateFileMeta(int $fileId, array $data): void
     {
         $this->db->update('files', $data, ['id' => $fileId]);
     }
 
+    //compte le nbre de version d'un file
     public function getVersionCount(int $fileId): int
     {
         $count = $this->db->count('file_versions', ['file_id' => $fileId]) ?: 0;
@@ -222,11 +190,12 @@ class FileRepository
             'checksum'
         ], [
             'file_id' => $fileId, 
-            'ORDER' => ['version' => 'DESC'], 
-            'LIMIT' => $limit
+            'ORDER'   => ['version' => 'DESC'], 
+            'LIMIT'   => $limit
         ]) ?: [];
     }
 
+    //retourne les version d'un fichier en pagination
     public function listVersionsPaginated(int $fileId, int $limit = 20, $offset = 0): array
     {
         // compter le total
@@ -244,20 +213,20 @@ class FileRepository
             'checksum'
         ], [
             'file_id' => $fileId, 
-            'ORDER' => ['version' => 'DESC'], 
-            'LIMIT' => [$offset, $limit]
+            'ORDER'   => ['version' => 'DESC'], 
+            'LIMIT'   => [$offset, $limit]
         ]) ?: [];
 
         return [
-            'rows' => $rows, 
-            'total' => $total, 
-            'current_version' => $currentVersion,
-            'limit' => $limit, 
-            'offset' => $offset
+            'rows'              => $rows, 
+            'total'             => $total, 
+            'current_version'   => $currentVersion,
+            'limit'             => $limit, 
+            'offset'            => $offset
         ];
     }
 
-    
+    //retourne les version d'un fichier en pagination pour partage
     public function listVersionsForShare(int $fileId, int $limit = 20, int $offset = 0): array
     {
         $limit = max(1, min(100, $limit));
@@ -276,7 +245,10 @@ class FileRepository
 
         $total = (int)($this->db->count('file_versions', ['file_id' => $fileId]) ?: 0);
 
-        return ['rows' => $rows, 'total' => $total, 'limit' => $limit, 'offset' => $offset];
+        return ['rows'   => $rows, 
+                'total'  => $total, 
+                'limit'  => $limit, 
+                'offset' => $offset];
     }
 
     //dernier version d'un fichier => version courante
@@ -341,38 +313,120 @@ class FileRepository
 
         return $row ?: null;
     }
+
+    //retourne les caractéristiques d'un version précise
+    public function findVersion(int $versionId): ?array
+    {
+        $version = $this->db->get('file_versions', '*', ['id' => $versionId]);
+        return $version ?: null;
+    }
+
+    //suppression la version de la bdd
+    public function deleteVersion(int $versionId): bool
+    {
+        $result = $this->db->delete('file_versions', ['id' => $versionId]);
+        return $result->rowCount() > 0;
+    }
+
+    //************************ il faut pour les files **************************
+
+    // public function quotaBytes(int $userId): int ??? à supprimer??
+    // {
+    //     return (int)$this->db->get('users', 'quota_total', ['id' => $userId]);
+    // }
+
+    //retourne le quota_total d'un user
+    public function userQuotaTotal(int $userId): int 
+    {
+        // évite des erreurs en cas d'absence du mise à jour de "quota_used"
+        return (int)($this->db->get('users', 'quota_total', ['id' => $userId]) ?: 0);
+    }
+
+    // mise à jour le quota_total d'un user
+    public function updateUserQuota(int $userId, int $quotaTotal): void
+    {
+        $this->db->update('users', [
+            'quota_total'   => $quotaTotal
+        ], [
+            'id'            => $userId
+        ]);
+    }
+
+    // mise à jour le quota_used d'un user
+    public function updateQuotaUsed(int $userId, int $quotaUsed): void
+    {
+        $this->db->update('users', [
+            'quota_used' => $quotaUsed
+        ], [
+            'id'         => $userId
+        ]);
+    }
+
+
+    // Récupère les infos complètes d'un user
+    public function getUser(int $userId): ?array
+    {
+        return $this->db->get('users', [
+            'id',
+            'email',
+            'quota_total',
+            'quota_used',
+            'is_admin',
+            'created_at'
+        ], ['id' => $userId]) ?: null;
+    }
    
 
-    // ======================= Folders ========================================
+    // ============================ Folders ========================================
     
+    //liste tous les folders
     public function listFolders(): array
     {
         return $this->db->select('folders', '*');
     }
 
+    //retourne les folders d'un user
+    public function listFoldersByUser(int $userId): array
+    {
+        return $this->db->select('folders', [
+            'id',
+            'user_id',
+            'parent_id',
+            'name',
+            'created_at'
+        ], [
+            'user_id'   => $userId,
+            'ORDER'     => ['name' => 'ASC']
+        ]);
+    }
+
+    //retourne toutes les caractéristiques d'un folder
     public function findFolder(int $id): ?array
     {
         return $this->db->get('folders', '*', ['id' => $id]) ?: null;
     }
 
-
-     public function createFolder(array $data): int
+    //crée un folder
+    public function createFolder(array $data): int
     {
         $this->db->insert('folders', $data);
         return (int)$this->db->id();
     }
 
+    //supprime un folder
     public function deleteFolder(int $id): void
     {
         $this->db->delete('folders', ['id' => $id]);
     }
 
+    //vérif si un folder existe
     public function folderExists(int $folderId): bool
     {
         return (bool)$this->db->get('folders', 'id', ['id' => $folderId]);
     }
 
 
+    //renomme un folder
     public function renameFolder(int $id, string $newName): bool
     {
         $count = $this->db->update('folders', [
@@ -412,9 +466,25 @@ class FileRepository
 
     }
 
+    //compte le nbre de fichiers dans un dossier pour un user donné
+    public function countFilesByFolder(int $folderId, int $userId){
+        return $this->db->count('files', [
+            'folder_id' => $folderId,
+            'user_id'   => $userId
+        ]);
+    }
 
-     // ======================= pour le shares ========================================
+    //compte le nbre de sous-dossier d'un dossier
+    public function countSubfolders(int $parentId){
+        return $this->db->count('folders', [
+            'parent_id' => $parentId
+        ]);
+    }
 
+
+    // ========================== pour le shares ========================================
+
+    //vérifie si le fichier appartient à un user donné
     public function isOwnedByUser(int $fileId, int $userId): bool
     {
         $count = $this->db->count('files', [
@@ -424,6 +494,7 @@ class FileRepository
         return $count > 0;
     }
 
+    //vérifie si le dossier appartient à un user donné
     public function folderOwnedByUser(int $folderId, int $userId): bool
     {
         $count = $this->db->count('folders', [

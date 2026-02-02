@@ -132,7 +132,6 @@ final class FileCrypto {
     }
 
 
-
      /**
      * Parse le key_envelope stocké en base: envIv(12) || envTag(16) || wrappedKey(n)
      * @return array{envIv:string, envTag:string, wrappedKey:string}
@@ -183,7 +182,6 @@ final class FileCrypto {
         }
 
         return $fileKey;
-
     }
 
 
@@ -279,10 +277,6 @@ final class FileCrypto {
             'servedVersion' => $servedVersion,
         ];
     }
-
-
-
-
 
 }
 ?>

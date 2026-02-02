@@ -6,8 +6,6 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class RequestHelper
 {
 
-
-
     /**
      * Récupère l'IP réelle du client (gère les proxies)
      */

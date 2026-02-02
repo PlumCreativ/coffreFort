@@ -4,6 +4,7 @@
 namespace App\Controller;
 
 use App\Model\UserRepository;
+use App\Security\AuthService;
 use Medoo\Medoo;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -14,11 +15,21 @@ class UserController
 {
     private UserRepository $users;
     private string $jwtSecret;
+    private AuthService $auth;
 
     public function __construct(Medoo $db)
     {
         $this->users = new UserRepository($db);
-        $this->jwtSecret = getenv('JWT_SECRET') ?: 'default-secret'; //=> à mettre dans env!!!
+        //$this->jwtSecret = getenv('JWT_SECRET') ?: 'default-secret'; //=> à mettre dans env!!!
+
+        // Init du secret JWT (env ou param)
+        $this->jwtSecret = $jwtSecret ?? ($_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '');
+        $this->auth = new AuthService($db, $this->jwtSecret);
+
+        if ($this->jwtSecret === '') {
+            // Tu peux aussi throw ici, mais je préfère debug clair
+            error_log("JWT_SECRET manquant dans les variables d'environnement.");
+        }
     }
 
     private function json(Response $response, array $data, int $status): Response{
@@ -26,29 +37,31 @@ class UserController
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 
-    // POST /auth/register - Inscription d'un nouvel utilisateur
+    
+
+    // POST /auth/register - Inscription d'un nouvel utilisateur ********************************************************** OK
     public function register(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody();
 
         // Validation des champs requis
         if (!isset($body['email']) || !isset($body['password'])) {
-            return $this->json($response, ['error' => 'Email and password are required'], 400);
+            return $this->json($response, ['error' => 'Email et un mot de passe sont requis'], 400);
         }
 
         // Validation de l'email
         if (!filter_var($body['email'], FILTER_VALIDATE_EMAIL)) {
-            return $this->json($response, ['error' => 'Invalid email format'], 400);
+            return $this->json($response, ['error' => "Format d'e-mail invalide"], 400);
         }
 
         // Validation du mot de passe (minimum 8 caractères)
         if (strlen($body['password']) < 8) {
-            return $this->json($response, ['error' => 'Password must be at least 8 characters long'], 400);
+            return $this->json($response, ['error' => 'Le mot de passe doit comporter au moins 8 caractères'], 400);
         }
 
         // Vérifier si l'email existe déjà
         if ($this->users->findByEmail($body['email'])) {
-            return $this->json($response, ['error' => 'Email already exists'], 409);
+            return $this->json($response, ['error' => 'Email existe déjà'], 409);
         }
 
         $isFirstUser = ($this->users->countUsers() === 0);
@@ -59,8 +72,8 @@ class UserController
             'email'         => $body['email'],
             'pass_hash'     => password_hash($body['password'], PASSWORD_DEFAULT),
             'quota_used'    => 0,
-            // 'quota_total' => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
-            'quota_total'   => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
+            'quota_total'   => isset($body['quota_total']) ? (int)$body['quota_total'] : 1073741824, // 1GB par défaut
+            // 'quota_total'   => isset($body['quota_total']) ? (int)$body['quota_total'] : 31457280, // 30 Mo par défaut pour tests
             'is_admin'      => $isAdmin,
             'created_at'    => date('Y-m-d')
         ];
@@ -68,7 +81,7 @@ class UserController
         $id = $this->users->create($userData);
 
         $response->getBody()->write(json_encode([
-            'message'   => 'User created successfully',
+            'message'   => 'Utilisateur créé',
             'id'        => $id,
             'email'     => $body['email'],
             'is_admin'  => $isAdmin
@@ -77,20 +90,20 @@ class UserController
     }
 
 
-    // POST /auth/login - Authentifie un utilisateur et retourne un JWT =>??????? à vérifier!!!!
+    // POST /auth/login - Authentifie un utilisateur et retourne un JWT ***************************************************** OK
     public function login(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody();
 
         // Vérification des champs requis
         if (!isset($body['email']) || !isset($body['password'])) {
-            return $this->json($response, ['error' => 'Email and password are required'], 400);
+            return $this->json($response, ['error' => 'Email et un mot de passe sont requis'], 400);
         }
 
         // Validation basique (anti XSS)
         $email = filter_var(trim($body['email']), FILTER_VALIDATE_EMAIL);
         if (!$email) {
-            return $this->json($response, ['error' => 'Invalid email format'], 400);
+            return $this->json($response, ['error' => "Format d'email invalide"], 400);
         }
 
         // Recherche de l'utilisateur par email
@@ -124,8 +137,96 @@ class UserController
         return $this->json($response, ['jwt' => $jwt], 200);
     }
 
+    // GET /users - Liste tous les utilisateurs que pour admin ********************************************************************** OK
+    public function list(Request $request, Response $response): Response
+    {
+        //vérif authentification d'admin
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $isAdmin = (int)$user['is_admin'];
 
-    // ROUTE DASHBOARD (protégée)
+            if($isAdmin === 0){
+                return $this->json($response, ['error' => "Accès interdit"], 403);
+            }
+
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        $data = $this->users->listUsers();
+
+        return $this->json($response, $data, 200);
+    }
+
+
+    // GET /users/{id} - Affiche un utilisateur que pour admin ********************************************************************** OK
+    public function show(Request $request, Response $response, array $args): Response
+    {
+        //vérif authentification d'admin
+        try {
+            $authUser = $this->auth->getAuthenticatedUserFromToken($request);
+            $isAdmin = (int)$authUser['is_admin'];
+
+            if($isAdmin === 0){
+                return $this->json($response, ['error' => "Accès interdit"], 403);
+            }
+
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        $id = (int)($args['id'] ?? 0);
+        if ($id <= 0) {
+            return $this->json($response, ['error' => 'ID invalide'], 400);
+        }
+
+        $targetUser = $this->users->find($id);
+
+        if (!$targetUser) {
+            return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
+        }
+
+        return $this->json($response, $targetUser, 200);
+    }
+
+
+    // DELETE /users/{id} - Supprime un utilisateur que pour admin ****************************************************************************OK
+    public function delete(Request $request, Response $response, array $args): Response
+    {
+        //vérif authentification d'admin
+        try {
+            $authUser = $this->auth->getAuthenticatedUserFromToken($request);
+            $isAdmin = (int)$authUser['is_admin'];
+
+            if($isAdmin === 0){
+                return $this->json($response, ['error' => "Accès interdit"], 403);
+            }
+
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        $id = (int)($args['id'] ?? 0);
+        if ($id <= 0) {
+            return $this->json($response, ['error' => 'ID invalide'], 400);
+        }
+
+        $targetUser = $this->users->find($id);
+        if (!$targetUser) {
+            return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
+        }
+
+        $deleted = $this->users->delete($id); // si possible, retourne true/false
+        if ($deleted === false) {
+            return $this->json($response, ['error' => 'Suppression impossible'], 500);
+        }
+
+        //réponse REST sans body
+        return $response->withStatus(204);
+    }
+
+
+     // ROUTE DASHBOARD (protégée)
     public function dashboard(Request $request, Response $response)
     {
         // Essayer de récupérer via Header
@@ -154,7 +255,6 @@ class UserController
             return $response->withStatus(403);
         }
 
-
         // OK → retourne les données nécessaires
         $response->getBody()->write(json_encode([
             "success"   => true,
@@ -165,43 +265,6 @@ class UserController
         return $response->withHeader("Content-Type", "application/json");
     }
 
-
-    // GET /users - Liste tous les utilisateurs
-    public function list(Request $request, Response $response): Response
-    {
-        $data = $this->users->listUsers();
-
-        return $this->json($response, $data, 200);
-    }
-
-    // GET /users/{id} - Affiche un utilisateur
-    public function show(Request $request, Response $response, array $args): Response
-    {
-        $id = (int)$args['id'];
-        $user = $this->users->find($id);
-
-        if (!$user) {
-            return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
-        }
-
-        return $this->json($response, $user, 200);
-    }
-
-
-    // DELETE /users/{id} - Supprime un utilisateur
-    public function delete(Request $request, Response $response, array $args): Response
-    {
-        $id = (int)$args['id'];
-        $user = $this->users->find($id);
-
-        if (!$user) {
-            return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
-        }
-
-        $this->users->delete($id);
-
-        return $this->json($response, ['message' => 'User deleted successfully'], 200);
-    }
 }
 
 ?>
