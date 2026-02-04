@@ -328,6 +328,11 @@ class FileRepository
         return $result->rowCount() > 0;
     }
 
+    public function getMimeType(int $fileId){
+        $mimeTypeFile = $this->db->get('files', 'mime', ['id' => $fileId]);
+        return $mimeTypeFile ?: null;
+    }
+
     //************************ il faut pour les files **************************
 
     // public function quotaBytes(int $userId): int ??? à supprimer??

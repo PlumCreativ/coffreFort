@@ -45,7 +45,7 @@ $app->get('/files/{id}/download', [$fileController, 'download']); //JO          
 $app->post('/files', [$fileController, 'upload']);                                     //=> (mainController) chiffré OK    // Uploader un fichier (crée la version 1 chiffrée) =  ok
 $app->delete('/files/{id}', [$fileController, 'delete']);                               //Supprimer un fichier (logique ou totale selon politique) = ok
 $app->put('/files/{id}', [$fileController, 'renameFile']);                              //renommage
-$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']);              //=> (java:FileDetailsController) déchiffré OK   //Ajouter une nouvelle version au fichier = à vérifier
+$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']);           //=> (java:FileDetailsController) déchiffré OK   //Ajouter une nouvelle version au fichier = à vérifier
 $app->get('/files/{id}/versions', [$fileController, 'listVersions']); //JO               //liste complète paginée des versions = OK
 $app->delete('/files/{file_id}/versions/{id}', [$fileController, 'deleteVersion']); //JO
 $app->get('/files/{id}/versions/{version}/download', [$fileController, 'downloadVersion']); //=> (FileDetailsController) déchiffré OK //téléchargement version (propriètaire)
