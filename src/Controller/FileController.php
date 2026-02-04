@@ -361,84 +361,90 @@ class FileController {
     }
 
 
-    // POST /files  (upload via form-data)
+    // POST /files  (upload via form-data)************************************************OK
     public function upload(Request $request, Response $response): Response
     {
+        //vérif authentification => décoder le token JWT depuis le header Authorization
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Throwable $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        //vérif la présence du fichier
         $uploadedFiles = $request->getUploadedFiles();
-
-        // DEBUG => Afficher ce qui est reçu
-        if (empty($uploadedFiles)) {
-            return $this->json($response, [
-                'error' => 'No file uploaded',
-                'debug' => [
-                    'uploaded_files'    => $uploadedFiles,
-                    'content_type'      => $request->getHeaderLine('Content-Type'),
-                    'method'            => $request->getMethod()
-                ]
-            ], 400);
+        if(empty($uploadedFiles) || !isset($uploadedFiles['file'])){
+             return $this->json($response, [
+                'error' => "Aucun fichier fourni",
+                'received_keys' => !empty($uploadedFiles) ? array_keys($uploadedFiles) : []
+                ], 400);
         }
-
-        if (!isset($uploadedFiles['file'])) {
-            return $this->json($response, [
-                'error' => 'No file with key "file" found',
-                'debug' => [
-                    'received_keys' => array_keys($uploadedFiles)
-                ]
-            ], 400);
-        }
-
+    
         $file = $uploadedFiles['file'];
 
         if ($file->getError() !== UPLOAD_ERR_OK) {
             $errorMessages = [
-                UPLOAD_ERR_INI_SIZE     => 'File exceeds upload_max_filesize',
-                UPLOAD_ERR_FORM_SIZE    => 'File exceeds MAX_FILE_SIZE',
-                UPLOAD_ERR_PARTIAL      => 'File was only partially uploaded',
-                UPLOAD_ERR_NO_FILE      => 'No file was uploaded',
-                UPLOAD_ERR_NO_TMP_DIR   => 'Missing temporary folder',
-                UPLOAD_ERR_CANT_WRITE   => 'Failed to write file to disk',
-                UPLOAD_ERR_EXTENSION    => 'File upload stopped by extension',
+                UPLOAD_ERR_INI_SIZE     => 'Fichier trop volumineux (upload_max_filesize)',
+                UPLOAD_ERR_FORM_SIZE    => 'Fichier trop volumineux (MAX_FILE_SIZE)',
+                UPLOAD_ERR_PARTIAL      => 'Fichier partiellement uploadé',
+                UPLOAD_ERR_NO_FILE      => 'Aucun fichier uploadé',
+                UPLOAD_ERR_NO_TMP_DIR   => 'Dossier temporaire manquant',
+                UPLOAD_ERR_CANT_WRITE   => 'Échec écriture sur disque',
+                UPLOAD_ERR_EXTENSION    => 'Upload stoppé par extension PHP',
             ];
             
             return $this->json($response, [
-                'error'         => 'Upload error',
+                'error'         => 'Erreur upload',
                 'error_code'    => $file->getError(),
-                'error_message' => $errorMessages[$file->getError()] ?? 'Unknown error'
+                'error_message' => $errorMessages[$file->getError()] ?? 'Erreur inconnu'
             ], 400);
         }
 
+        // validation du fichier => MIME, taille, extension
         try {
             $this->validateUploadedFile($file);
         } catch (\RuntimeException $e) {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
             
-        // Décoder le token JWT depuis le header Authorization
-        try {
-            $user = $this->auth->getAuthenticatedUserFromToken($request);
-            $userId = (int)$user['id'];
-        } catch (\Exception $e) {
-            $code = $e->getCode() ?: 401;
-            return $this->json($response, ['error' => $e->getMessage()], $code);
-        }
 
-        //Récupérer folder_id depuis form-data ou query !!!! => remettre plus tard quand on lie avec le folder
+        //Récupérer folder_id depuis form-data ou query !
         $parsedBody = $request->getParsedBody();
         //$folderId = 5; //=> pour le test avec postman;
         $folderId = (int)($parsedBody['folder_id'] ?? 0);
-        if ($folderId <= 0 || !$this->files->folderExists($folderId)) {
+
+        if($folderId <= 0){
+            return $this->json($response, ['error' => 'Dossier non spécifié'], 400);
+        }
+        
+        //vérif dossier existe
+        if (!$this->files->folderExists($folderId)) {
             return $this->json($response, ['error' => 'Dossier introuvable'], 404);
         }
 
+        //vérif si le folder appartient à user
+        if($file['user_id'] !== $userId){
+            return $this->json($response, ['error' => 'Accès interdit à ce dossier'], 403);
+        }
+
+        //vérif quota
         $size = (int)$file->getsize();
         $totalSize = $this->files->totalSizeByUser($userId); //=> par utilisateur!!! 
         $quota = $this->files->userQuotaTotal($userId); //ancien quotaBytes
 
         if ($quota > 0 && ($totalSize + $size) > $quota) {
-            return $this->json($response, ['error' => 'Quota exceeded'], 413);
+            return $this->json($response, [
+                'error'      => 'Quota dépassé',
+                'quota_max'  => $quota,
+                'quota_used' => $totalSize,
+                'file_size'  => $size
+                ], 413);
         }
 
         $originalName = $file->getClientFilename();
+        $mimeType = $file->getClientMediaType();
 
         //lire le tmp => régi
         // $tmpPath = $file->getStream()->getMetaData('uri');
@@ -454,8 +460,6 @@ class FileController {
         if (!$tmpPath || !file_exists($tmpPath)) {
             return $this->json($response, ['error' => 'Impossible d\'accéder au fichier téléversé'], 500);
         }
-
-        $mimeType = $file->getClientMediaType();
 
         try {
             $this->db->pdo->beginTransaction();
@@ -494,7 +498,8 @@ class FileController {
             StorageWriter::ensureDir($this->uploadDir);
 
             //stocké chiffré
-            $storedName = uniqid('f_', true) . '_' . '_file_' . $fileId . '.bin';
+            //$storedName = uniqid('f_', true) . '_' . '_file_' . $fileId . '.bin';
+            $storedName = uniqid('f_', true) . '_file_' . $fileId . '.bin';
             $outPath = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
 
             //Écriture avec stream 
@@ -524,7 +529,7 @@ class FileController {
             $this->db->pdo->commit();
 
              $response->getBody()->write(json_encode([
-                'message'       => 'File uploaded successfully (encrypted)',
+                'message'       => 'Fichier uploadé avec succès (crypté)',
                 'id'            => $fileId,
                 'version_id'    => $versionId,
                 'version'       => 1,
@@ -545,16 +550,22 @@ class FileController {
             }
 
             return $this->json($response, [
-                'error' => 'Database error',
+                'error' => 'Erreur lors de l\'upload',
                 'details' => $e->getMessage(),
             ], 500);
         }
     }
 
 
-     // POST /files/{id}/versions
+     // POST /files/{id}/versions*********************************************************OK
     public function uploadNewVersion(Request $request, Response $response, array $args): Response
     {
+        
+        $fileId = (int)($args['id'] ?? 0);
+        if($fileId <= 0){
+            return $this->json($response, ['error' => 'id invalide'], 400);
+        }
+
         //vérif authentification
         try {
             $user = $this->auth->getAuthenticatedUserFromToken($request);
@@ -564,12 +575,7 @@ class FileController {
             return $this->json($response, ['error' => $e->getMessage()], 401);
         }
         
-        $fileId = (int)($args['id'] ?? 0);
-        if($fileId <= 0){
-            return $this->json($response, ['error' => 'id invalide'], 400);
-        }
-
-        //vérif fichier et owner
+        //vérif fichier appartient owner
         $file = $this->files->find($fileId);
         if(!$file){
             return $this->json($response, ['error' => 'Fichier introuvable'], 404);
@@ -588,7 +594,33 @@ class FileController {
 
         $newFile = $uploadedFiles['file'];
         if($newFile->getError() !== UPLOAD_ERR_OK){
-            return $this->json($response, ['error' => 'Upload error', 'code' => $newFile->getError()], 400);
+            return $this->json($response, ['error' => 'Erreur lors de l\'upload', 'code' => $newFile->getError()], 400);
+        }
+
+        //vérif que l'extension correspond
+        $currentFileName = $file['original_name'];
+        $currentExtension = strtolower(pathinfo($currentFileName, PATHINFO_EXTENSION));
+
+        $uploadFileName = $newFile->getClientFileName();
+        $uploadedExtension = strtolower(pathinfo($uploadFileName, PATHINFO_EXTENSION));
+
+        if($currentExtension !== $uploadedExtension){
+            return $this->json($response, [
+                'error' => 'Le type de fichier ne correspond pas',
+                'expected' => $currentExtension,
+                'received' => $uploadedExtension
+             ], 400);
+        }
+
+        //vérif le type mime
+        $uploadedMimeType = $newFile->getClientMediaType();
+        $currentMimeType = $this->files->getMimeType($fileId);
+
+        if(!$this->isMimeTypeCompatible($currentMimeType, $uploadedMimeType)){
+            return $this->json($response, ['error' => 'Le type MIME ne correspond pas',
+             'expected' => $currentMimeType,
+             'received' => $uploadedMimeType
+             ], 400);
         }
 
         try {
@@ -650,7 +682,8 @@ class FileController {
             StorageWriter::ensureDir($this->uploadDir);
           
             //nom stocké
-            $storedName = uniqid('fv_', true) . '_' . '_file_' . $fileId . '.bin';
+            //$storedName = uniqid('fv_', true) . '_' . '_file_' . $fileId . '.bin';
+            $storedName = uniqid('fv_', true) . '_file_' . $fileId . '.bin';
             $outPath = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
 
             StorageWriter::writeBinary($outPath, $crypto['ciphertext']);
@@ -689,7 +722,7 @@ class FileController {
             $this->db->pdo->commit();
 
             $response->getBody()->write(json_encode([
-                'message'     => 'New version created',
+                'message'     => 'Version créée avec succès',
                 'file_id'     => $fileId,
                 'version_id'  => $versionId,
                 'version'     => $nextVersion,
@@ -712,10 +745,41 @@ class FileController {
             }
 
             return $this->json($response, [
-                'error'         => 'Database error',
+                'error'         => 'Erreur lors de la création de la version',
                 'details'       => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Vérifie si deux types Mime sont compatibles
+     */
+    private function isMimeTypeCompatible(String $expected, String $received): bool
+    {
+        //normaliser les types MIME
+        $expected = strtolower(trim($expected));
+        $received = strtolower(trim($received));
+
+        // Types MIME équivalents
+        $equivalents = [
+            'image/jpeg'         => ['image/jpeg', 'image/jpg'],
+            'image/jpg'          => ['image/jpeg', 'image/jpg'],
+            'application/pdf'    => ['application/pdf'],
+            'application/msword' => ['application/msword'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => [
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ],
+        ];
+
+        //vérif si les type sont équivalents
+        foreach($equivalents as $base => $aliases){
+            if(in_array($expected, $aliases) && in_array($received, $aliases)){
+                return true;
+            }
+        }
+
+        //sinon => vérifie l'égalité stricte
+        return $expected === $received;
     }
 
 
@@ -731,14 +795,17 @@ class FileController {
         $filename = $file->getClientFilename();
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
+        //vérif la taille
         if ($size > self::MAX_FILE_SIZE) {
             throw new \RuntimeException('Taille trop grande (max. ' . (self::MAX_FILE_SIZE / 1024 / 1024) . ' Mo)');
         }
 
+        //vérif extension
         if (!in_array($extension, self::ALLOWED_EXTENSIONS)) {
             throw new \RuntimeException("Extension '$extension' non autorisée");
         }
 
+        //vérif le type MIME
         if (!in_array($mimeType, self::ALLOWED_MIME_TYPES)) {
             throw new \RuntimeException("Type MIME '$mimeType' non autorisé");
         }
@@ -792,6 +859,7 @@ class FileController {
                 return $this->json($response, ['error' => 'stored_name manquant (file_versions)'], 500);
             }
 
+            //vérif que le fichier chiffré existe sur le disque
             $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
             if (!file_exists($path)) {
                 return $this->json($response, ['error' => 'Fichier manquant sur le serveur'], 500);
@@ -804,13 +872,14 @@ class FileController {
             // }
 
             // Lecture par stream pour éviter de charger tout en mémoire
+            //lire le fichier chiffré
             try {
                 $ciphertext = StorageWriter::readBinary($path);
             } catch(\RuntimeException $e){
                  return $this->json($response, ['error' => 'Impossible de lire le fichier'], 500);
             }
            
-
+            //déchiffrer le fichier
             try {
                 $kek = FileCrypto::normalizeKek($_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '');
                 $decrypte = FileCrypto::decryptFromStorage($ciphertext, $versionRow, $kek, $fileId);
@@ -829,6 +898,7 @@ class FileController {
                 return $this->json($response, ['error' => $e->getMessage()], 500);
             }
 
+            // préparer les headers de téléchargement
             $filename = (string)($file['original_name'] ?? 'download');
             $mime = (string)($file['mime'] ?? 'application/octet-stream');
 
@@ -837,7 +907,7 @@ class FileController {
                 $this->downloadLog->log($shareId, $versionId, $ip, $userAgent, true, 'Download direct réussi');
             }
 
-            // renvoyer le PLAINTEXT  et pas le fichier chiffré!!!!
+            // renvoyer le PLAINTEXT (contenu déchiffré) et pas le fichier chiffré!!!!
             $response->getBody()->write($plaintext);
 
             return $response
@@ -853,6 +923,7 @@ class FileController {
             return $this->json($response, ['error' => 'stored_name manquant (files)'], 500);
         }
 
+        //vérif que le fichier chiffré existe sur le disque
         $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
 
         if (!file_exists($path)) {
@@ -892,7 +963,7 @@ class FileController {
     }
 
 
-    // GET /files/{id}/versions/{version}/download  => //téléchargement version (propriètaire)
+    // GET /files/{id}/versions/{version}/download  => //téléchargement version (propriètaire) **************************************ok
     public function downloadVersion(Request $request, Response $response, array $args): Response
     {
         $fileId = (int)($args['id'] ?? 0);
@@ -924,12 +995,14 @@ class FileController {
             return $this->json($response, ['error' => "Accès refusé"], 403);
         }
 
+        //récup fichier
         $file = $this->files->find($fileId);
         if(!$file){
             $this->downloadLog->log($shareId, null, $ip, $userAgent, false, 'Fichier introuvable');
             return $this->json($response, ['error' => "Fichier introuvable"], 404);
         }
 
+        //récup version demandé
         $versionRow = $this->files->getVersionRow($fileId, $version);
         $versionId = (int)($versionRow['id'] ?? 0);
         if(!$versionRow){
@@ -942,6 +1015,7 @@ class FileController {
             return $this->json($response, ['error' => "stored_name manquant"], 500);
         }
 
+        //vérif que le fichier chiffré existe sur le disque
         $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
         if(!file_exists($path)){
             return $this->json($response, ['error' => 'Fichier manquant sur le serveur'], 500);
@@ -961,12 +1035,14 @@ class FileController {
             return $this->json($response, ['error' => 'Impossible de lire le fichier'], 500);
         }
 
-
+        //déchiffrer le fichier
         try{
             $kek = FileCrypto::normalizeKek($_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '');
-
             $decrypte = FileCrypto::decryptFromStorage($ciphertext, $versionRow, $kek, $fileId);
             $plaintext = $decrypte['plaintext'];
+
+            // Libérer mémoire
+            unset($ciphertext);
 
         }catch (\Throwable $e){
             $message = $e->getMessage();
@@ -979,8 +1055,12 @@ class FileController {
             return $this->json($response, ['error' => $message], 500);
         }
 
+        //préparer les headers de téléchargement
         $filename = (string)($file['original_name'] ?? 'download');
         $mime = (string)($file['mime'] ?? 'application/octet-stream');
+
+        //Encoder le nom de fichier pour éviter les problèmes avec caractères spéciaux???
+        //$safeFilename = rawurlencode($filename);
 
         // renvoyer le PLAINTEXT  et pas le fichier chiffré!!!!
         $response->getBody()->write($plaintext);
