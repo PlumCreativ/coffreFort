@@ -12,6 +12,8 @@ class ShareRepository{
         $this->db = $db;
     }
 
+
+    //crée une partage
     public function create(array $data): array{
 
         $this->db->insert('shares', [
@@ -32,16 +34,19 @@ class ShareRepository{
         return $this->findById($id);
     }
 
+    //retourne tous les caractéristiques d'un partage
     public function findById(int $id): ?array{
         $row = $this->db->get('shares', '*', ['id' => $id]);
         return $row ?: null;
     }
 
+    //trouve le partage par le token (donné)
     public function findByToken(string $token): ?array{
          $row = $this->db->get('shares', '*', ['token' => $token]);
         return $row ?: null;
     }
 
+    //révoquer un partage
     public function revoke(int $id): void{
         $this->db->update('shares', [
             'is_revoked' => 1
@@ -50,6 +55,7 @@ class ShareRepository{
         ]);  
     }
 
+    //supprimer un partage
     public function delete(int $id): void {
         $this->db->delete('shares', [
             'id' => $id
@@ -69,10 +75,10 @@ class ShareRepository{
         return $stmt->rowCount() > 0;
     }
 
+    // décrémente seulement si remaining_uses est > 0
+    // retourne true si décrément OK, false sinon
     public function consumeUse(int $shareId): bool {
 
-        // décrémente seulement si remaining_uses est > 0
-        // retourne true si décrément OK, false sinon
         $count = $this->db->update('shares', [
             'remaining_uses[-]' => 1
         ], [

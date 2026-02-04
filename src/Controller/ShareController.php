@@ -39,7 +39,7 @@ class ShareController{
 
         $this->uploadDir = __DIR__ . '/../../storage/uploads';
 
-        $this->jwtSecret = $jwtSecret ?? ($_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '');
+        $this->jwtSecret   = $jwtSecret ?? ($_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '');
         $this->shareSecret = $_ENV['SHARE_SECRET'] ?? getenv('SHARE_SECRET') ?? '';
         $this->publicBaseUrl = rtrim(($_ENV['APP_PUBLIC_BASE_URL'] ?? getenv('APP_PUBLIC_BASE_URL') ?? ''), '/');
 
@@ -180,8 +180,8 @@ class ShareController{
         $params = $request->getQueryParams();
         $targetId = isset($params['target_id']) ? (int)$params['target_id'] : null;
         // $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 10;
-        $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 20;
-        $offset = isset($params['offset']) ? max(0, (int)$params['offset']) : 0;
+        $limit    = isset($params['limit']) ? min(100, (int)$params['limit']) : 20;
+        $offset   = isset($params['offset']) ? max(0, (int)$params['offset']) : 0;
 
         $where = ['user_id' => $userId];
         if($targetId !== null && $targetId > 0){
@@ -225,8 +225,8 @@ class ShareController{
 
         return $this->json($response, [
             'shares' => $shares,
-            'total' => $total,      
-            'limit' => $limit,      
+            'total'  => $total,      
+            'limit'  => $limit,      
             'offset' => $offset     
         ], 200);
     }
@@ -310,13 +310,13 @@ class ShareController{
 
             return $this->json($response, [
                 'message' => 'Partage révoqué avec succès',
-                'id' => $shareId
+                'id'      => $shareId
             ], 200);
 
         } catch (\Exception $e) {
             return $this->json($response, [
-                'error' => 'Erreur lors de la révocation',
-                'details' => $e->getMessage()
+                'error'     => 'Erreur lors de la révocation',
+                'details'   => $e->getMessage()
             ], 500);
         }
         
@@ -324,7 +324,7 @@ class ShareController{
     }
 
 
-    // GET /s/{token} ->affiche les infos du partage => consultation publique des métadonnées.
+    // GET /s/{token} ->affiche les infos du partage => consultation publique des métadonnées. *************************************************************** OK
     public function publicShare(Request $request, Response $response, array $args): Response {
 
         $token = (string)($args['token'] ?? '');
@@ -395,7 +395,7 @@ class ShareController{
         ], 200);
     }
 
-
+    //DELETE /shares/{id}
     public function deleteShare(Request $request, Response $response, array $args): Response {
 
         $shareId = (int)($args['id'] ?? 0);
@@ -430,12 +430,12 @@ class ShareController{
 
             return $this->json($response, [
                 'message' => 'Partage supprimé avec succès',
-                'id' => $shareId
+                'id'      => $shareId
             ], 200);
 
         } catch (\Exception $e) {
             return $this->json($response, [
-                'error' => 'Erreur lors de la suppression',
+                'error'   => 'Erreur lors de la suppression',
                 'details' => $e->getMessage()
             ], 500);
         }
@@ -461,7 +461,7 @@ class ShareController{
     /********************************************************************************/
 
 
-    //GET /s/{token}/download  =>téléchargement, journalisation et décrémentation atomique de remaining_uses.
+    //GET /s/{token}/download  =>téléchargement, journalisation et décrémentation atomique de remaining_uses.   ********************************************************* OK
     // télécharger la version courante (par défaut)
     // télécharger une version spécifique (si autorisé)
     public function publicDownload(Request $request, Response $response, array $args):Response {
@@ -751,7 +751,7 @@ class ShareController{
             $res['rows']),
             'total'         => (int)$res['total'],
             'limit'         => (int)$res['limit'],
-            'offset'         => (int)$res['offset'],
+            'offset'        => (int)$res['offset'],
         ], 200);
     }
 }

@@ -18,6 +18,7 @@ class AuthService
         $this->jwtSecret = $jwtSecret;
     }
 
+    //authentifier user du token récupéré
     public function getAuthenticatedUserFromToken(Request $request): array
     {
         //Récupérer le header Authorization
@@ -53,6 +54,5 @@ class AuthService
         }
 
         return $user; // ex: ['id' => ..., 'email' => ...]
-
     }
 }

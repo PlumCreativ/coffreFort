@@ -75,35 +75,48 @@ class FileController {
         }
     }
 
+    //=============================================================================================================
+    //                                          FILES
+    //=============================================================================================================
 
-    // GET /files ou GET /files?folder={id}
+    // GET /files ou GET /files?folder={id}  ******************************************************************************** OK
     public function list(Request $request, Response $response): Response
     {
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
         $queryParams = $request->getQueryParams();
         
         // Si un folder_id est fourni, filtrer par dossier
         if (isset($queryParams['folder'])) {
             $folderId = (int)$queryParams['folder'];
-            
-            // Vérifier si le dossier existe
-            if (!$this->files->folderExists($folderId)) {
-                return $this->json($response, [
-                    'error'     => 'Folder not found',
-                    'folder_id' => $folderId
-                ], 404);
+
+            if ($folderId <= 0) {
+                return $this->json($response, ['error' => 'ID de dossier invalide'], 400);
             }
             
-            $data = $this->files->listFilesByFolder($folderId);
+            // Vérifier si le dossier existe
+            $folder = $this->files->findFolder($folderId);
+            if (!$folder) {
+                return $this->json($response, ['error' => 'Dossier introuvable'], 404);
+            }
+
+            //vérifier si le dossier appartient au user
+            if ((int)$folder['user_id'] !== $userId) {
+                return $this->json($response, ['error' => 'Accès interdit à ce dossier'], 403);
+            }
+            
+            $data = $this->files->listFilesByFolder($folderId, $userId);
         } else {
             // Sinon, retourner tous les fichiers
-            $data = $this->files->listFiles();
+            $data = $this->files->listFilesByUser($userId);
         }
 
-        $payload = json_encode($data, JSON_PRETTY_PRINT);
-        $response->getBody()->write($payload);
-        return $response
-            ->withHeader('Content-Type', 'application/json')
-            ->withStatus(200);
+        return $this->json($response, $data, 200);
     }
 
 
@@ -131,7 +144,7 @@ class FileController {
     }
 
 
-    // GET /files/{id}  => détails d'un fichier avec versions
+    // GET /files/{id}  => détails d'un fichier avec versions  ************************************************************************ OK
     public function show(Request $request, Response $response, array $args): Response
     {
         $id = (int)$args['id'];
@@ -201,7 +214,7 @@ class FileController {
         return $this->json($response, $responseData, 200);
     }
 
-    // GET /files/{id}/versions  => liste complète paginée des versions
+    // GET /files/{id}/versions  => liste complète paginée des versions  ************************************************************************************
     public function listVersions(Request $request, Response $response, array $args): Response
     {        
         $fileId = (int)($args['id'] ?? 0);
@@ -268,6 +281,85 @@ class FileController {
         ], 200);
     }
 
+    //DELETE /files/{file_id}/versions/{id} *********************************************************************************************************************** OK
+    public function deleteVersion(Request $request, Response $response, array $args): Response
+    {
+        $fileId = (int)($args['file_id'] ?? 0);
+        $versionId = (int)($args['id'] ?? 0);
+
+        if($fileId <= 0){
+            return $this->json($response, ['error' => 'id fichier invalide'], 400);
+        }
+
+        if($versionId <= 0){
+            return $this->json($response, ['error' => 'id version invalide'], 400);
+        }
+
+        //vérif authentification
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        //vérif fichier et owner
+        $file = $this->files->find($fileId);
+        if(!$file){
+            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
+        }
+
+        if((int)$file['user_id'] !== $userId){
+            return $this->json($response, ['error' => 'Accès interdit'], 403);
+        }
+
+        //vérifier que la version existe et appartienne au fichier
+        $version = $this->files->findVersion($versionId);
+        if(!$version){
+            return $this->json($response, ['error' => 'Version introuvable'], 404);
+        }
+
+        if((int)$version['file_id'] !== $fileId){
+             return $this->json($response, ['error' => 'Cette version n\'appartient pas à ce fichier'], 403);
+        }
+
+        //ne pas supprimer la version courante
+        $currentVersion = (int)$file['current_version'];
+        if((int)$version['version'] === $currentVersion){
+            return $this->json($response, ['error' => 'Impossible de supprimer la version active du fichier'], 400);
+        }
+
+        //ne pas supprimer si c'est la seule version
+        $totalVersions = $this->files->getVersionCount($fileId);
+        if($totalVersions <= 1){
+            return $this->json($response, ['error' => 'Impossible de supprimer la dernière version du fichier'], 400);
+        }
+
+        // Supprimer
+        try {
+            $path = $this->uploadDir . DIRECTORY_SEPARATOR . $version['stored_name'];
+            if (file_exists($path)) {
+                unlink($path);
+            }
+
+            $this->files->deleteVersion($versionId);
+
+            return $this->json($response, [
+                'message'           => 'Version supprimée avec succès',
+                'file_id'           => $fileId,
+                'version_id'        => $versionId,
+                'version_number'    => (int)$version['version']
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->json($response, [
+                'error'     => 'Erreur lors de la suppression',
+                'details'   => $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     // POST /files  (upload via form-data)
     public function upload(Request $request, Response $response): Response
@@ -279,9 +371,9 @@ class FileController {
             return $this->json($response, [
                 'error' => 'No file uploaded',
                 'debug' => [
-                    'uploaded_files' => $uploadedFiles,
-                    'content_type' => $request->getHeaderLine('Content-Type'),
-                    'method' => $request->getMethod()
+                    'uploaded_files'    => $uploadedFiles,
+                    'content_type'      => $request->getHeaderLine('Content-Type'),
+                    'method'            => $request->getMethod()
                 ]
             ], 400);
         }
@@ -653,7 +745,7 @@ class FileController {
     }
 
 
-    // GET /files/{id}/download  => //téléchargement direct (propriètaire)(version courante)
+    // GET /files/{id}/download  => //téléchargement direct (propriètaire)(version courante) ***********************************************************************  OK
     public function download(Request $request, Response $response, array $args): Response
     {
         $fileId = (int)($args['id'] ?? 0);
@@ -1070,7 +1162,6 @@ class FileController {
         try {
             $user = $this->auth->getAuthenticatedUserFromToken($request);
             $userId = (int)$user['id'];
-
         } catch (\Exception $e) {
             return $this->json($response, ['error' => $e->getMessage()], 401);
         }
@@ -1143,19 +1234,19 @@ class FileController {
     //         ->withStatus(200);
     // }
 
-    // GET /folders — retourne uniquement les dossiers appartenant à l'utilisateur connecté
+
+    //=========================================================================================================
+    //                                      FOLDERS
+    //=========================================================================================================
+
+    // GET /folders — retourne uniquement les dossiers appartenant à l'utilisateur connecté ********************************** OK
     public function listFolders(Request $request, Response $response): Response
     {
         try {
             $user = $this->auth->getAuthenticatedUserFromToken($request);
             $userId = (int)$user['id'];
         } catch (\Exception $e) {
-            $code = $e->getCode();
-            if ($code < 100 || $code > 599) {
-                $code = 401; // fallback
-            }
-
-            return $this->json($response, ['error' => $e->getMessage()], $code);
+            return $this->json($response, ['error' => $e->getMessage()], 401);
         }
 
         // Récupérer uniquement les dossiers de ce user
@@ -1169,9 +1260,16 @@ class FileController {
             ->withStatus(200);
     }
     
-    // POST /folders - Crée un nouveau dossier => 
+    // POST /folders - Crée un nouveau dossier **************************************************************************** OK
     public function createFolder(Request $request, Response $response): Response
     {
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
         $body = $request->getParsedBody();
         
         // Validation
@@ -1195,56 +1293,92 @@ class FileController {
         $folderId = $this->files->createFolder($folderData);
         
         return $this->json($response, [
-            'message'       => 'Folder created',
+            'message'       => 'Dossier créé',
             'id'            => $folderId,
             'name'          => $body['name'],
             'parent_id'     => $parentId
         ], 201);
     }
 
-    // DELETE /folders/{id}  => à mettre dedans  le vérif propriétaire
+
+    // DELETE /folders/{id}  => à mettre dedans  le vérif propriétaire *********************************************************** OK
     public function deleteFolder(Request $request, Response $response, array $args): Response
     {
-        $id = (int)$args['id'];
-        $folder = $this->files->findFolder($id);
+        $folderId = (int)($args['id'] ?? 0);
+        if($folderId <= 0){
+            return $this->json($response, ['error' => 'ID de dossier invalide'], 400);
+        }
 
+        //authentification
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        //vérif si folder existe
+        $folder = $this->files->findFolder($folderId);
         if (!$folder) {
-            return $this->json($response, ['error' => 'Folder not found'], 404);
+            return $this->json($response, ['error' => 'Dossier introuvable'], 404);
         }
 
-        // Supprimer le fichier sur le disque
-        $path = $this->uploadDir . DIRECTORY_SEPARATOR . $folder['name'];
-        if (file_exists($path)) {
-            unlink($path);
+        //vérif si folder appartient au user
+        if ((int)$folder['user_id'] !== $userId) {
+            return $this->json($response, ['error' => 'Accès interdit à ce dossier'], 403);
         }
 
-        // Supprimer en base
-        $this->files->deleteFolder($id);
+        //vérif s'il y a des files dans le dossier
+        $filesInFolder = $this->files->countFilesByFolder($folderId, $userId);
+        if ($filesInFolder > 0) {
+            return $this->json($response, [
+                'error' => 'Le dossier contient des fichiers et ne peut pas être supprimé',
+                'files_count' => $filesInFolder
+            ], 400);
+        }
 
-        // suppression réussi => statut: 204
-        return $this->json($response, ['message' => 'Folder deleted'], 204);
+        // vérif s'il y a des sous-dossiers
+        $subfolders = $this->files->countSubfolders($folderId);
+        if ($subfolders > 0) {
+            return $this->json($response, [
+                'error' => 'Le dossier contient des sous-dossiers et ne peut pas être supprimé',
+                'subfolders_count' => $subfolders
+            ], 400);
+        }
+
+        try{
+            // Supprimer en base
+             $this->files->deleteFolder($folderId);
+
+            // suppression réussi => statut: 204
+            return $this->json($response, ['message' => 'Folder deleted'], 204);
+        }catch(\Exception $e){
+            return $this->json($response, [
+                'error' => 'Erreur lors de la suppression du dossier',
+                'details' => $e->getMessage()
+            ], 500);
+        }
     }
 
 
-    //PUT /folders/{id} => renommer un dossier
+    //PUT /folders/{id} => renommer un dossier ****************************************************************** OK
     public function renameFolder(Request $request, Response $response, array $args): Response
     {
         // récuperer id via JWT
         try {
             $user = $this->auth->getAuthenticatedUserFromToken($request);
             $userId = (int)$user['id'];
-
         } catch (\Exception $e) {
             $code = (int)($e->getCode() ?: 401);
             return $this->json($response, ['error' => $e->getMessage()], $code);
         }
 
-        $id = (int)($args['id'] ?? 0);
-        if($id <= 0){
+        $folderId = (int)($args['id'] ?? 0);
+        if($folderId <= 0){
             return $this->json($response, ['error' => 'id invalide'], 400);
         }
 
-        $folder = $this->files->findFolder($id);
+        $folder = $this->files->findFolder($folderId);
         if(!$folder){
             return $this->json($response, ['error' => 'Dossier introuvable'], 404);
         }
@@ -1269,21 +1403,29 @@ class FileController {
 
         //empêcher le doublon dans le même parent
         $parentId = $folder['parent_id'] !== null ? (int)$folder['parent_id'] : null;
-        if($this->files->folderNameExistForUser($userId, $parentId, $newName, $id)){
+        if($this->files->folderNameExistForUser($userId, $parentId, $newName, $folderId)){
             return $this->json($response, ['error' => 'Un dossier avec ce nom existe deja ici'], 409);
         }
 
-        $ok = $this->files->renameFolder($id, $newName);
+        $ok = $this->files->renameFolder($folderId, $newName);
         if(!$ok){
             return $this->json($response, ['error' => 'Renommage non applique...'], 404);
         }
 
         return $this->json($response, [
             'message'       => 'Dossier renomme',
-            'id'            => $id,
+            'id'            => $folderId,
             'name'          => $newName
         ], 200);
     }
+
+
+
+
+
+
+
+
 
     //PUT /files/{id} => renommer un dossier
     public function renameFile(Request $request, Response $response, array $args): Response
