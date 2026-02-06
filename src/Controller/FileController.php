@@ -22,6 +22,7 @@ class FileController {
 
     private Medoo $db; 
     private FileRepository $files;
+    private UserRepository $users;
     private AuthService $auth;
     private DownloadLogRepository $downloadLog;
     private string $uploadDir;
@@ -56,6 +57,7 @@ class FileController {
     {
         $this->db = $db;
         $this->files = new FileRepository($db);
+        $this->users = new UserRepository($db);
         $this->uploadDir = __DIR__ . '/../../storage/uploads';
         $this->downloadLog = new DownloadLogRepository($db);
 
@@ -281,86 +283,6 @@ class FileController {
         ], 200);
     }
 
-    //DELETE /files/{file_id}/versions/{id} *********************************************************************************************************************** OK
-    public function deleteVersion(Request $request, Response $response, array $args): Response
-    {
-        $fileId = (int)($args['file_id'] ?? 0);
-        $versionId = (int)($args['id'] ?? 0);
-
-        if($fileId <= 0){
-            return $this->json($response, ['error' => 'id fichier invalide'], 400);
-        }
-
-        if($versionId <= 0){
-            return $this->json($response, ['error' => 'id version invalide'], 400);
-        }
-
-        //vérif authentification
-        try {
-            $user = $this->auth->getAuthenticatedUserFromToken($request);
-            $userId = (int)$user['id'];
-
-        } catch (\Exception $e) {
-            return $this->json($response, ['error' => $e->getMessage()], 401);
-        }
-
-        //vérif fichier et owner
-        $file = $this->files->find($fileId);
-        if(!$file){
-            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
-        }
-
-        if((int)$file['user_id'] !== $userId){
-            return $this->json($response, ['error' => 'Accès interdit'], 403);
-        }
-
-        //vérifier que la version existe et appartienne au fichier
-        $version = $this->files->findVersion($versionId);
-        if(!$version){
-            return $this->json($response, ['error' => 'Version introuvable'], 404);
-        }
-
-        if((int)$version['file_id'] !== $fileId){
-             return $this->json($response, ['error' => 'Cette version n\'appartient pas à ce fichier'], 403);
-        }
-
-        //ne pas supprimer la version courante
-        $currentVersion = (int)$file['current_version'];
-        if((int)$version['version'] === $currentVersion){
-            return $this->json($response, ['error' => 'Impossible de supprimer la version active du fichier'], 400);
-        }
-
-        //ne pas supprimer si c'est la seule version
-        $totalVersions = $this->files->getVersionCount($fileId);
-        if($totalVersions <= 1){
-            return $this->json($response, ['error' => 'Impossible de supprimer la dernière version du fichier'], 400);
-        }
-
-        // Supprimer
-        try {
-            $path = $this->uploadDir . DIRECTORY_SEPARATOR . $version['stored_name'];
-            if (file_exists($path)) {
-                unlink($path);
-            }
-
-            $this->files->deleteVersion($versionId);
-
-            return $this->json($response, [
-                'message'           => 'Version supprimée avec succès',
-                'file_id'           => $fileId,
-                'version_id'        => $versionId,
-                'version_number'    => (int)$version['version']
-            ], 200);
-
-        } catch (\Exception $e) {
-            return $this->json($response, [
-                'error'     => 'Erreur lors de la suppression',
-                'details'   => $e->getMessage()
-            ], 500);
-        }
-    }
-
-
     // POST /files  (upload via form-data)************************************************OK
     public function upload(Request $request, Response $response): Response
     {
@@ -418,21 +340,24 @@ class FileController {
         if($folderId <= 0){
             return $this->json($response, ['error' => 'Dossier non spécifié'], 400);
         }
+
+        
         
         //vérif dossier existe
-        if (!$this->files->folderExists($folderId)) {
+        if(!$this->files->folderExists($folderId)) {
             return $this->json($response, ['error' => 'Dossier introuvable'], 404);
         }
 
+        $folder = $this->files->findFolder($folderId);
         //vérif si le folder appartient à user
-        if($file['user_id'] !== $userId){
+        if((int)$folder['user_id'] !== $userId){
             return $this->json($response, ['error' => 'Accès interdit à ce dossier'], 403);
         }
 
         //vérif quota
         $size = (int)$file->getsize();
         $totalSize = $this->files->totalSizeByUser($userId); //=> par utilisateur!!! 
-        $quota = $this->files->userQuotaTotal($userId); //ancien quotaBytes
+        $quota = $this->files->userQuotaTotal($userId); //ancien quotaBytes 
 
         if ($quota > 0 && ($totalSize + $size) > $quota) {
             return $this->json($response, [
@@ -498,8 +423,8 @@ class FileController {
             StorageWriter::ensureDir($this->uploadDir);
 
             //stocké chiffré
-            //$storedName = uniqid('f_', true) . '_' . '_file_' . $fileId . '.bin';
-            $storedName = uniqid('f_', true) . '_file_' . $fileId . '.bin';
+            $storedName = uniqid('f_', true) . '_' . '_file_' . $fileId . '.bin';
+           //$storedName = uniqid('f_', true) . '_file_' . $fileId . '.bin';
             $outPath = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
 
             //Écriture avec stream 
@@ -527,6 +452,10 @@ class FileController {
             ]);
 
             $this->db->pdo->commit();
+
+            //recalculer le total depuis le BDD
+            $newTotalSize = $this->files->totalSizeByUser($userId);
+            $this->users->updateUserQuotaUsed($userId, $newTotalSize);
 
              $response->getBody()->write(json_encode([
                 'message'       => 'Fichier uploadé avec succès (crypté)',
@@ -563,7 +492,7 @@ class FileController {
         
         $fileId = (int)($args['id'] ?? 0);
         if($fileId <= 0){
-            return $this->json($response, ['error' => 'id invalide'], 400);
+            return $this->json($response, ['error' => 'Fileid invalide'], 400);
         }
 
         //vérif authentification
@@ -692,6 +621,7 @@ class FileController {
             unset($crypto['ciphertext']);
 
             $checksum = $crypto['checksum'];
+            $totalSizeUsed = $this->files->totalSizeByUser($userId);
 
             //insérer file_versions
             $versionId = $this->files->createFileVersion([
@@ -720,6 +650,10 @@ class FileController {
             ]);
 
             $this->db->pdo->commit();
+
+            //recalculer le total depuis le BDD
+            $newTotalSize = $this->files->totalSizeByUser($userId);
+            $this->users->updateUserQuotaUsed($userId, $newTotalSize);
 
             $response->getBody()->write(json_encode([
                 'message'     => 'Version créée avec succès',
@@ -817,7 +751,7 @@ class FileController {
     {
         $fileId = (int)($args['id'] ?? 0);
         if ($fileId <= 0) {
-            return $this->json($response, ['error' => 'Paramètres invalides'], 400);
+            return $this->json($response, ['error' => 'FileId invalides'], 400);
         }
 
         // Récupérer IP et User-Agent pour les logs
@@ -970,8 +904,12 @@ class FileController {
         $version = (int)($args['version'] ?? 0);
         $shareId = null; //=>  un déchiffrement direct
 
-        if($fileId <= 0 || $version <= 0){
-            return $this->json($response, ['error' => 'Paramètres invalides'], 400);
+        if($fileId <= 0){
+            return $this->json($response, ['error' => 'id fichier invalide'], 400);
+        }
+
+        if($version <= 0){
+            return $this->json($response, ['error' => 'id version invalide'], 400);
         }
 
         // Récupérer IP et User-Agent pour les logs
@@ -1090,25 +1028,161 @@ class FileController {
   /****************************************************************************************/     
 
 
-    // DELETE /files/{id}
+    /**
+     * DELETE /files/{id} ********************************************************************************************** OK
+     * Supprime un fichier et TOUTES ses versions
+     */
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $id = (int)$args['id'];
-        $file = $this->files->find($id);
+        //vérif authentification => décoder le token JWT depuis le header Authorization
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
 
-        if (!$file) {
+        } catch (\Throwable $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+        
+        $fileId = (int)$args['id'];
+        if($fileId <= 0){
+            return $this->json($response, ['error' => 'FileId invalide'], 400);
+        }
+
+        //vérif fichier et owner
+        $file = $this->files->find($fileId);
+        if(!$file){
             return $this->json($response, ['error' => 'Fichier introuvable'], 404);
         }
 
-        // Supprimer le fichier sur le disque
-        $path = $this->uploadDir . DIRECTORY_SEPARATOR . $file['stored_name'];
-        if (file_exists($path)) {
-            unlink($path);
+        if((int)$file['user_id'] !== $userId){
+            return $this->json($response, ['error' => 'Accès interdit'], 403);
+        }
+        
+        try{
+            $versions = $this->files->getAllVersions($fileId);
+
+            //supprimer tous les versions sur le disque
+            foreach ($versions as $version) {
+                $storedName = $version['stored_name'];
+                $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+                if (file_exists($path)) {
+                    @unlink($path); //=>  @ pour éviter les warnings si le fichier n'existe plus
+                }
+            }
+            
+            //transaction SQL
+            $this->db->pdo->beginTransaction();
+
+             // Supprimer les versions en BDD
+            $this->files->deleteAllVersions($fileId);
+
+            // Supprimer le fichier en BDD
+            $this->files->delete($fileId);
+
+            $this->db->pdo->commit();
+
+            //mise à jour le quota
+            $newTotalSize = $this->files->totalSizeByUser($userId);
+            $this->users->updateUserQuotaUsed($userId, $newTotalSize);
+
+            return $this->json($response, [
+                'message'           => 'Fichier supprimé avec succès',
+                'file_id'           => $fileId,
+                'versions_deleted'  => count($versions)
+            ], 200);
+        }catch(\Exception $e){
+            return $this->json($response, [
+                'error'     => 'Erreur lors de la suppression du fichier',
+                'details'   => $e->getMessage()
+            ], 500);
+        } 
+    }
+
+    /**
+     * DELETE /files/{file_id}/versions/{id} *********************************************************************************************************************** OK
+     * Supprime une version d'un fichier
+     */
+     public function deleteVersion(Request $request, Response $response, array $args): Response
+    {
+        
+        //vérif authentification
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+    
+        $fileId = (int)($args['file_id'] ?? 0);
+        $versionId = (int)($args['id'] ?? 0);
+
+        if($fileId <= 0){
+            return $this->json($response, ['error' => 'id fichier invalide'], 400);
         }
 
-        // Supprimer en base
-        $this->files->delete($id);
-        return $this->json($response, ['message' => 'File deleted'], 200);
+        if($versionId <= 0){
+            return $this->json($response, ['error' => 'id version invalide'], 400);
+        }
+
+        //vérif fichier et owner
+        $file = $this->files->find($fileId);
+        if(!$file){
+            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
+        }
+
+        if((int)$file['user_id'] !== $userId){
+            return $this->json($response, ['error' => 'Accès interdit'], 403);
+        }
+
+        //vérifier que la version existe et appartienne au fichier
+        $version = $this->files->findVersion($versionId);
+        if(!$version){
+            return $this->json($response, ['error' => 'Version introuvable'], 404);
+        }
+
+        if((int)$version['file_id'] !== $fileId){
+             return $this->json($response, ['error' => 'Cette version n\'appartient pas à ce fichier'], 403);
+        }
+
+        //ne pas supprimer la version courante
+        $currentVersion = (int)$file['current_version'];
+        if((int)$version['version'] === $currentVersion){
+            return $this->json($response, ['error' => 'Impossible de supprimer la version active du fichier'], 400);
+        }
+
+        //ne pas supprimer si c'est la seule version
+        $totalVersions = $this->files->getVersionCount($fileId);
+        if($totalVersions <= 1){
+            return $this->json($response, ['error' => 'Impossible de supprimer la dernière version du fichier'], 400);
+        }
+
+        // Supprimer
+        try {
+            $path = $this->uploadDir . DIRECTORY_SEPARATOR . $version['stored_name'];
+            if (file_exists($path)) {
+                unlink($path);
+            }
+
+            $this->files->deleteVersion($versionId);
+
+            //mise à jour le quota
+            $newTotalSize = $this->files->totalSizeByUser($userId);
+            $this->users->updateUserQuotaUsed($userId, $newTotalSize);
+
+            return $this->json($response, [
+                'message'           => 'Version supprimée avec succès',
+                'file_id'           => $fileId,
+                'version_id'        => $versionId,
+                'version_number'    => (int)$version['version']
+            ], 200);
+
+        } catch (\Exception $e) {
+            return $this->json($response, [
+                'error'     => 'Erreur lors de la suppression de la version',
+                'details'   => $e->getMessage()
+            ], 500);
+        }
     }
 
 

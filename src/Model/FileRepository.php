@@ -77,9 +77,16 @@ class FileRepository
     //retourne le totel size des fichiers d'un user
     public function totalSizeByUser(int $userId): int 
     {
-        return (int)($this->db->sum('files', 'size', ['user_id' => $userId]) ?: 0);
+        
+        $total = $this->db->sum('file_versions',[
+            '[>]files' => ['file_versions.file_id' => 'id'],
+        ], 'file_versions.size',
+        [
+            'files.user_id' => $userId
+        ]);
+      
+        return (int)($total ?? 0);
     }
-
 
     // derniers uploads d'un user
     public function recentUploads(int $userId, int $limit = 20): array
@@ -325,6 +332,18 @@ class FileRepository
     public function deleteVersion(int $versionId): bool
     {
         $result = $this->db->delete('file_versions', ['id' => $versionId]);
+        return $result->rowCount() > 0;
+    }
+
+    //récupère toutes les version d'un fichier
+    public function getAllVersions(int $fileId){
+        return $this->db->select('file_versions', '*', ['file_id' => $fileId]);
+    }
+
+    //supprime toutes les versions
+    public function deleteAllVersions(int $fileId): bool
+    {
+        $result = $this->db->delete('file_versions', ['file_id' => $fileId]);
         return $result->rowCount() > 0;
     }
 

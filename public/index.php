@@ -4,6 +4,7 @@ use Medoo\Medoo;
 use App\Controller\FileController;
 use App\Controller\UserController;
 use App\Controller\ShareController;
+use App\Controller\AdminController;
 use Slim\Psr7\UploadedFile;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -30,9 +31,16 @@ if ($basePath !== '') {
     $app->setBasePath($basePath);
 }
 
+$adminController = new AdminController($database);
 $fileController = new FileController($database);
 $userController = new UserController($database);
 $shareController = new ShareController($database);
+
+//JO => signifie requête dans Postman OK
+
+//routes pour les admin
+$app->get('/admin/users/quotas', [$adminController, 'listUsersWithQuota']); //JO        //Liste tous les utilisateurs avec leurs quotas QUE Admin
+$app->put('/admin/users/{id}/quota', [$adminController, 'updateUserQuota']);//JO        //modifier le quota d'un utilisateur QUE ADMIN
 
 // routes pour les fichiers
 $app->get('/files', [$fileController, 'list']); // JO                                    //Lister les fichiers par dossier = ok
@@ -43,17 +51,18 @@ $app->get('/files/{id}/download', [$fileController, 'download']); //JO          
 // GET /files?folder={id}  => à vérifier comment je fais 
 
 $app->post('/files', [$fileController, 'upload']);                                     //=> (mainController) chiffré OK    // Uploader un fichier (crée la version 1 chiffrée) =  ok
-$app->delete('/files/{id}', [$fileController, 'delete']);                               //Supprimer un fichier (logique ou totale selon politique) = ok
+$app->delete('/files/{id}', [$fileController, 'delete']);//JO                              //Supprime un fichier et TOUTES ses versions = ok
 $app->put('/files/{id}', [$fileController, 'renameFile']);                              //renommage
 $app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']);           //=> (java:FileDetailsController) déchiffré OK   //Ajouter une nouvelle version au fichier = à vérifier
 $app->get('/files/{id}/versions', [$fileController, 'listVersions']); //JO               //liste complète paginée des versions = OK
-$app->delete('/files/{file_id}/versions/{id}', [$fileController, 'deleteVersion']); //JO
+$app->delete('/files/{file_id}/versions/{id}', [$fileController, 'deleteVersion']); //JO        Supprime une version d'un fichier
 $app->get('/files/{id}/versions/{version}/download', [$fileController, 'downloadVersion']); //=> (FileDetailsController) déchiffré OK //téléchargement version (propriètaire)
 
 //Stats / quota / activité
 $app->get('/stats', [$fileController, 'stats']);
 $app->put('/quota', [$fileController, 'setQuota']);                          //pour modifier le quota
 $app->get('/me/quota', [$fileController, 'meQuota']);                       //Récupérer le quota de l'utilisateur = ok
+
 $app->get('/me/activity', [$fileController, 'meActivity']);                 //Derniers événements de l'utilisateur = à vérifier si je l'utilise!????!!! openapi 540
 
 // routes pour les folders
@@ -72,7 +81,7 @@ $app->post('/logout', [$userController,'logout']); // il n'y a pas
 
 //route pour les shares
 $app->post('/shares', [$shareController, 'createShare']);                   //Créer un lien de partage = à faire pour les folders + si je remplis pas maxuses ou date expiration
-$app->get('/shares', [$shareController, 'listShares']);                     //Lister les liens de partage de l'utilisateur = ok
+$app->get('/shares', [$shareController, 'listShares']);                     //Liste des partages filtrables, triés et paginés = ok
 $app->get('/shares/{id}', [$shareController, 'showShare']);                 // Détails d'un partage (pour le propriétaire)
 $app->delete('/shares/{id}', [$shareController, 'deleteShare']);            //supprimer le lien de partage
 $app->patch('/shares/{id}/revoke', [$shareController, 'revokeShare']);       //Révoquer immédiatement un lien de partage = ok
