@@ -166,7 +166,10 @@ class ShareController{
     }
 
 
-    // GET /shares ->liste des partages filtrable, trié et paginé.
+    /**
+     * GET /shares ******************************************************************************* OK
+     * Liste des partages filtrables, triés et paginés
+     */
     public function listShares(Request $request, Response $response): Response
     {
         try{
@@ -177,30 +180,47 @@ class ShareController{
             return $this->json($response, ['error' => $e->getMessage()], $code);
         }
 
+        //paramètres de pagination et filtrages
         $params = $request->getQueryParams();
         $targetId = isset($params['target_id']) ? (int)$params['target_id'] : null;
         // $limit = isset($params['limit']) ? min(100, (int)$params['limit']) : 10;
-        $limit    = isset($params['limit']) ? min(100, (int)$params['limit']) : 20;
-        $offset   = isset($params['offset']) ? max(0, (int)$params['offset']) : 0;
+        $limit = isset($params['limit']) ? min(100, max(1, (int)$params['limit'])) : 20; // garantir: 1 < limit < 20
+        $offset = isset($params['offset']) ? max(0, (int)$params['offset']) : 0;
 
+        //construction des conditions WHERE
         $where = ['user_id' => $userId];
         if($targetId !== null && $targetId > 0){
             $where['target_id'] = $targetId;
         }
 
+        //Compter AVANT de récupérer (pour éviter de charger si 0 résultats)
+        $total = $this->db->count('shares', ['AND' => $where]);
+
+        // Si aucun résultat, retourner directement
+        if ($total === 0) {
+            return $this->json($response, [
+                'shares'    => [],
+                'total'     => 0,
+                'limit'     => $limit,
+                'offset'    => $offset
+            ], 200);
+        }
+
+        //récup des partages
         $shares = $this->db->select('shares', '*', [
             'AND' => $where,
             'ORDER' => ['created_at' => 'DESC'],
             'LIMIT' => [$offset, $limit]
         ]);
 
+        //enrichir avec les noms de fichiers/dossiers
         foreach($shares as &$share){
             if($share['kind'] === 'file'){
 
                 //récuperer le nom original du fichier
                 $file = $this->db->get('files', 'original_name', ['id' => (int)$share['target_id']]);
                 
-                $share['file_name'] = $file ?: 'Fichier supprime';
+                $share['file_name'] = $file ?: 'Fichier supprimé';
 
             }elseif($share['kind'] === 'folder'){
 
@@ -219,9 +239,6 @@ class ShareController{
 
         }
         unset($share);
-
-        //pour la pagination
-        $total = $this->db->count('shares', [ 'AND' => $where]);
 
         return $this->json($response, [
             'shares' => $shares,

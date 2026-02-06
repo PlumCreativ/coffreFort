@@ -49,4 +49,30 @@ class UserRepository
         return (int)$this->db->count('users');
     }
 
+    //update le quota d'un user
+    public function updateQuota(int $targetUserId, int $newQuota): bool
+    {
+        $count = $this->db->update('users', [
+            'quota_total' => $newQuota
+        ], [
+            'id'     => $targetUserId
+        ])->rowCount();
+
+        //vérif => le nombre de ligne modifié
+        return $count > 0;
+    }
+
+    //update le quota d'un user
+    public function updateUserQuotaUsed(int $targetUserId, int $newQuotaUsed): bool
+    {
+        $count = $this->db->update('users', [
+            'quota_used' => $newQuotaUsed
+        ], [
+            'id'     => $targetUserId
+        ])->rowCount();
+
+        //vérif => le nombre de ligne modifié
+        return $count > 0;
+    }
+
 }

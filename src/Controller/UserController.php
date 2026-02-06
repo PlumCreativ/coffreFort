@@ -27,7 +27,7 @@ class UserController
         $this->auth = new AuthService($db, $this->jwtSecret);
 
         if ($this->jwtSecret === '') {
-            // Tu peux aussi throw ici, mais je préfère debug clair
+            // possible de faire throw ici, mais je préfère debug clair
             error_log("JWT_SECRET manquant dans les variables d'environnement.");
         }
     }
@@ -208,7 +208,7 @@ class UserController
 
         $id = (int)($args['id'] ?? 0);
         if ($id <= 0) {
-            return $this->json($response, ['error' => 'ID invalide'], 400);
+            return $this->json($response, ['error' => 'Id utilisateur invalide'], 400); 
         }
 
         $targetUser = $this->users->find($id);
