@@ -81,9 +81,15 @@ class FileController {
     //                                          FILES
     //=============================================================================================================
 
-    // GET /files ou GET /files?folder={id}  ******************************************************************************** OK
+    /*
+     * GET /files ou GET /files?folder={id}  ******************************************************************************** OK
+     * Liste des fichiers de l'utilisateur avec pagination
+     * GET /files?limit=20&offset=0 // GET /files?limit=20&offset=20
+     * GET /files?folder=10&limit=10&offset=0 //GET /files?folder=10&limit=10&offset=10
+     */
     public function list(Request $request, Response $response): Response
     {
+        //authentification
         try {
             $user = $this->auth->getAuthenticatedUserFromToken($request);
             $userId = (int)$user['id'];
@@ -92,6 +98,8 @@ class FileController {
         }
 
         $queryParams = $request->getQueryParams();
+        $limit = isset($queryParams['limit']) ? min(100, max(1, (int)$queryParams['limit'])) : 20; // garantir: 1 < limit < 20
+        $offset = isset($queryParams['offset']) ? max(0, (int)$queryParams['offset']) : 0;
         
         // Si un folder_id est fourni, filtrer par dossier
         if (isset($queryParams['folder'])) {
@@ -112,17 +120,49 @@ class FileController {
                 return $this->json($response, ['error' => 'Accès interdit à ce dossier'], 403);
             }
             
-            $data = $this->files->listFilesByFolder($folderId, $userId);
+            //Compter AVANT de récupérer (pour éviter de charger si 0 résultats)
+            $total = $this->files->countFilesByFolderByUser($userId, $folderId);
+
+            // Si aucun résultat, retourner directement
+            if ($total === 0) {
+                return $this->json($response, [
+                    'files'    => [],
+                    'total'     => 0,
+                    'limit'     => $limit,
+                    'offset'    => $offset
+                ], 200);
+            }
+
+            $files = $this->files->listFilesByFolder($folderId, $userId, $limit, $offset);
+
         } else {
             // Sinon, retourner tous les fichiers
-            $data = $this->files->listFilesByUser($userId);
+            //Compter AVANT de récupérer (pour éviter de charger si 0 résultats)
+            $total = $this->files->countFilesByUser($userId);
+
+            // Si aucun résultat, retourner directement
+            if ($total === 0) {
+                return $this->json($response, [
+                    'files'    => [],
+                    'total'     => 0,
+                    'limit'     => $limit,
+                    'offset'    => $offset
+                ], 200);
+            }
+
+            $files = $this->files->listFilesByUser($userId, $limit, $offset);
         }
 
-        return $this->json($response, $data, 200);
+        return $this->json($response, [
+            'files'  => $files,
+            'total'  => $total,      
+            'limit'  => $limit,      
+            'offset' => $offset     
+        ], 200);
     }
 
 
-    // GET /filesPaginated => avec pagination
+    // GET /filesPaginated => avec pagination  => je n'utilise pas cette route, c'est juste pour montrer un exemple de pagination simple sans filtrage par user ou folder (pas d'auth, pas de vérif de propriétaire) ******************************************************************************************
     public function listPaginated(Request $request, Response $response): Response
     {
         $nbFiles = $this->files->countfiles();
@@ -147,6 +187,7 @@ class FileController {
 
 
     // GET /files/{id}  => détails d'un fichier avec versions  ************************************************************************ OK
+    //(FileDetails=> pour rafraîchir les métadonnées (latest_versions içi n'est pas utilisé)
     public function show(Request $request, Response $response, array $args): Response
     {
         $id = (int)$args['id'];
@@ -216,15 +257,12 @@ class FileController {
         return $this->json($response, $responseData, 200);
     }
 
+ 
+
+        
     // GET /files/{id}/versions  => liste complète paginée des versions  ************************************************************************************
     public function listVersions(Request $request, Response $response, array $args): Response
     {        
-        $fileId = (int)($args['id'] ?? 0);
-
-        if($fileId <= 0){
-            return $this->json($response, ['error' => 'id invalide'], 400);
-        }
-
         //vérif authentification
         try {
             $user = $this->auth->getAuthenticatedUserFromToken($request);
@@ -234,6 +272,14 @@ class FileController {
             return $this->json($response, ['error' => $e->getMessage()], 401);
         }
 
+        //vérif si fileId est présent et valide
+        $fileId = (int)($args['id'] ?? 0);
+
+        if($fileId <= 0){
+            return $this->json($response, ['error' => 'id invalide'], 400);
+        }
+
+        
         //vérif fichier et owner
         $file = $this->files->find($fileId);
         if(!$file){
@@ -245,19 +291,33 @@ class FileController {
         }
 
         // paramètre de pagination
-        // $page  = (int)($request->getQueryParams()['page'] ?? 1);
-        $params = $request->getQueryParams();
-        $limit = isset($params['limit']) ? (int)$params['limit'] : 20;
-        $offset = isset($params['offset']) ? (int)$params['offset'] : 0;
+        $queryParams = $request->getQueryParams();
+        $limit = isset($queryParams['limit']) ? min(100, max(1, (int)$queryParams['limit'])) : 20; // garantir: 1 < limit < 20
+        $offset = isset($queryParams['offset']) ? max(0, (int)$queryParams['offset']) : 0;
 
-         //limit de sécurité
-        if($limit <= 0) $limit = 20;
-        if($limit > 100) $limit = 100;
-        if($offset < 0) $offset = 0;
+
+         //limit de sécurité => à supprimer si ça marche
+        // if($limit <= 0) $limit = 20;
+        // if($limit > 100) $limit = 100;
+        // if($offset < 0) $offset = 0;
+
+
+        //Compter AVANT de récupérer (pour éviter de charger si 0 résultats)
+        $total = $this->files->getVersionCount($fileId);
+
+        // Si aucun résultat, retourner directement
+        if ($total === 0) {
+            return $this->json($response, [
+                'versions'    => [],
+                'total'     => 0,
+                'limit'     => $limit,
+                'offset'    => $offset
+            ], 200);
+        }
 
         // Récupérer les versions avec pagination
-        $result = $this->files->listVersionsPaginated($fileId, $limit, $offset);
-        $currentVersion = (int)$result['current_version'];
+        $versions = $this->files->listVersionsPaginated($fileId, $limit, $offset);
+        $currentVersion = (int)$versions['current_version'];
 
         // formatter les versions avec checksum tronqué => BINARY(32) => bin2hex puis truncate  
         $versionsMapped = array_map(function ($row) use ($currentVersion) {  //importer la variable => use
@@ -271,12 +331,12 @@ class FileController {
                 'checksum'      => $checksumHex,
                 'is_current'    => (int)$row['version'] === $currentVersion
             ];
-        },$result['rows']);
+        },$versions['rows']);
         
         return $this->json($response, [
             'file_id'           => $fileId,
-            'current_version'   => $result['current_version'],
-            'total'             => $result['total'],
+            'current_version'   => $currentVersion, //$result['current_version'],
+            'total'             => $total, //$result['total'],
             'limit'             => $limit,
             'offset'            => $offset,
             'versions'          => $versionsMapped
