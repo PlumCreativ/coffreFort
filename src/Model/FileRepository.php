@@ -18,22 +18,26 @@ class FileRepository
         return $this->db->select('files', '*');
     }
 
-    //retourne tous les caractéristiques des fichiers d'un dossier appartenant à un user
-    public function listFilesByFolder(int $folderId, int $userId): array
+    // liste les fichiers d'un dossier avec pagination
+    public function listFilesByFolder(int $folderId, int $userId, int $limit = 20, int $offset = 0): array
     {
         return $this->db->select('files', '*', [
-            'folder_id' => $folderId,
-            'user_id'   => $userId,
-            'ORDER'     => ['updated_at' => 'DESC']
+            'AND' => [
+                'folder_id' => $folderId,
+                'user_id'   => $userId
+            ],
+            'ORDER'     => ['updated_at' => 'DESC'],
+            'LIMIT'     => [$offset, $limit]   //pour la pagination
         ]);
     }
 
-    //retourne tous les caractéristiques des fichiers d'un user
-     public function listFilesByUser(int $userId): array
+    // liste tous les fichiers d'un utilisateur avec pagination
+     public function listFilesByUser(int $userId, int $limit = 20, int $offset = 0): array
     {
         return $this->db->select('files', '*', [
             'user_id'   => $userId,
-            'ORDER'     => ['updated_at' => 'DESC']
+            'ORDER'     => ['updated_at' => 'DESC'],
+            'LIMIT'     => [$offset, $limit]   //pour la pagination
         ]);
     }
 
@@ -66,6 +70,15 @@ class FileRepository
     public function countFilesByUser(int $userId): int
     {
         return (int)($this->db->count('files', ['user_id' => $userId]) ?: 0);
+    }
+
+    // compte le nombre de fichiers dans un dossier pour un utilisateur
+    public function countFilesByFolderByUser(int $userId, int $folderId): int
+    {
+        return (int)($this->db->count('files', [
+            'user_id'   => $userId,
+            'folder_id' => $folderId
+            ]) ?: 0);
     }
 
     //retourne le totel size des fichiers
@@ -208,7 +221,7 @@ class FileRepository
         // compter le total
         $total = $this->getVersionCount($fileId);
 
-        //récuperer la version courante
+        //récupérer la version courante
         $currentVersion = $this->getMaxVersionForFile($fileId);
 
         //récuperer les versions paginées      

@@ -187,14 +187,8 @@ class ShareController{
         $limit = isset($params['limit']) ? min(100, max(1, (int)$params['limit'])) : 20; // garantir: 1 < limit < 20
         $offset = isset($params['offset']) ? max(0, (int)$params['offset']) : 0;
 
-        //construction des conditions WHERE
-        $where = ['user_id' => $userId];
-        if($targetId !== null && $targetId > 0){
-            $where['target_id'] = $targetId;
-        }
-
         //Compter AVANT de récupérer (pour éviter de charger si 0 résultats)
-        $total = $this->db->count('shares', ['AND' => $where]);
+        $total = $this->shares->countSharesByUser($userId, $targetId);
 
         // Si aucun résultat, retourner directement
         if ($total === 0) {
@@ -207,11 +201,7 @@ class ShareController{
         }
 
         //récup des partages
-        $shares = $this->db->select('shares', '*', [
-            'AND' => $where,
-            'ORDER' => ['created_at' => 'DESC'],
-            'LIMIT' => [$offset, $limit]
-        ]);
+        $shares = $this->shares->listSharesByUser($userId, $targetId, $limit, $offset);
 
         //enrichir avec les noms de fichiers/dossiers
         foreach($shares as &$share){

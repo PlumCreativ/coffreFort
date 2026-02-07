@@ -45,18 +45,17 @@ $app->put('/admin/users/{id}/quota', [$adminController, 'updateUserQuota']);//JO
 // routes pour les fichiers
 $app->get('/files', [$fileController, 'list']); // JO                                    //Lister les fichiers par dossier = ok
 $app->get('/files?folder={id}', [$fileController, 'list']); //JO
-$app->get('/filesPaginated', [$fileController, 'listPaginated']);
+$app->get('/filesPaginated', [$fileController, 'listPaginated']);                       //=> je n'utilise pas cette route, c'est juste pour montrer un exemple de pagination simple sans filtrage par user ou folder (pas d'auth, pas de vérif de propriétaire) ****************************************************************************************** OK
 $app->get('/files/{id}', [$fileController, 'show']); //JO                               //Détails d'un fichier avec le dernier version = ok
-$app->get('/files/{id}/download', [$fileController, 'download']); //JO                 //=> (mainController) chiffré OK  //téléchargement direct (propriètaire)(version courante) = ok
-// GET /files?folder={id}  => à vérifier comment je fais 
+$app->get('/files/{id}/download', [$fileController, 'download']); //JO                  //=> (mainController) chiffré OK  //téléchargement direct (propriètaire)(version courante) = ok
 
-$app->post('/files', [$fileController, 'upload']);                                     //=> (mainController) chiffré OK    // Uploader un fichier (crée la version 1 chiffrée) =  ok
+$app->post('/files', [$fileController, 'upload']);                                      //=> (mainController) chiffré OK    // Uploader un fichier (crée la version 1 chiffrée) =  ok
 $app->delete('/files/{id}', [$fileController, 'delete']);//JO                              //Supprime un fichier et TOUTES ses versions = ok
 $app->put('/files/{id}', [$fileController, 'renameFile']);                              //renommage
-$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']);           //=> (java:FileDetailsController) déchiffré OK   //Ajouter une nouvelle version au fichier = à vérifier
+$app->post('/files/{id}/versions', [$fileController, 'uploadNewVersion']);              //=> (java:FileDetailsController) déchiffré OK   //Ajouter une nouvelle version au fichier = à vérifier
 $app->get('/files/{id}/versions', [$fileController, 'listVersions']); //JO               //liste complète paginée des versions = OK
-$app->delete('/files/{file_id}/versions/{id}', [$fileController, 'deleteVersion']); //JO        Supprime une version d'un fichier
-$app->get('/files/{id}/versions/{version}/download', [$fileController, 'downloadVersion']); //=> (FileDetailsController) déchiffré OK //téléchargement version (propriètaire)
+$app->delete('/files/{file_id}/versions/{id}', [$fileController, 'deleteVersion']); //JO        //Supprime une version d'un fichier
+$app->get('/files/{id}/versions/{version}/download', [$fileController, 'downloadVersion']);     //=> (FileDetailsController) déchiffré OK //téléchargement version (propriètaire)
 
 //Stats / quota / activité
 $app->get('/stats', [$fileController, 'stats']);
@@ -98,15 +97,22 @@ $app->get('/', function ($request, $response) {
     $response->getBody()->write(json_encode([
         'message' => 'File Vault API',
         'endpoints' => [
+            'GET /admin/users/quotas',
+            'PUT /admin/users/{id}/quota',
+
             'GET /files',
-            'GET /filesPaginated',
+            'GET /files?folder={id}',
+           
             'GET /files/{id}',
             'GET /files/{id}/download',
+
             'POST /files',
             'DELETE /files/{id}',
             'PUT /files/{id}',
             'POST /files/{id}/versions',
             'GET /files/{id}/versions',
+            'DELETE/files/{file_id}/versions/{id}',
+
             'GET /s/{token}/versions',
             'GET /files/{id}/versions/{version}/download',
 
@@ -129,11 +135,17 @@ $app->get('/', function ($request, $response) {
 
             'POST /shares',
             'GET /shares',
+            'GET /shares/{id}',
+            'DELETE /shares/{id}',
             'POST /shares/{id}/revoke',
+
             'GET /s/{token}',
             'GET /s/{token}/download',
+            'GET /s/{token}/versions',
 
         ]
+
+                  
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');
 });

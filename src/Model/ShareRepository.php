@@ -14,8 +14,8 @@ class ShareRepository{
 
 
     //crée une partage
-    public function create(array $data): array{
-
+    public function create(array $data): array
+    {
         $this->db->insert('shares', [
             'user_id'               => (int)$data['user_id'],
             'kind'                  => (string)$data['kind'], //file or folder
@@ -35,19 +35,22 @@ class ShareRepository{
     }
 
     //retourne tous les caractéristiques d'un partage
-    public function findById(int $id): ?array{
+    public function findById(int $id): ?array
+    {
         $row = $this->db->get('shares', '*', ['id' => $id]);
         return $row ?: null;
     }
 
     //trouve le partage par le token (donné)
-    public function findByToken(string $token): ?array{
+    public function findByToken(string $token): ?array
+    {
          $row = $this->db->get('shares', '*', ['token' => $token]);
         return $row ?: null;
     }
 
     //révoquer un partage
-    public function revoke(int $id): void{
+    public function revoke(int $id): void
+    {
         $this->db->update('shares', [
             'is_revoked' => 1
         ], [
@@ -56,14 +59,16 @@ class ShareRepository{
     }
 
     //supprimer un partage
-    public function delete(int $id): void {
+    public function delete(int $id): void 
+    {
         $this->db->delete('shares', [
             'id' => $id
         ]);
     }
 
     //pas utilisé
-    public function decrementRemainingUses(int $id):bool {
+    public function decrementRemainingUses(int $id): bool 
+    {
         $stmt = $this->db->update('shares',[ 
             'remaining_uses[-]'     => 1
         ], [
@@ -77,8 +82,8 @@ class ShareRepository{
 
     // décrémente seulement si remaining_uses est > 0
     // retourne true si décrément OK, false sinon
-    public function consumeUse(int $shareId): bool {
-
+    public function consumeUse(int $shareId): bool 
+    {
         $count = $this->db->update('shares', [
             'remaining_uses[-]' => 1
         ], [
@@ -87,6 +92,38 @@ class ShareRepository{
         ])->rowCount();
 
         return $count > 0;
+    }
+
+    public function countSharesByUser(int $userId, ?int $targetId = null): int
+    {
+        $where = ['user_id' => $userId];
+
+        if($targetId !== null && $targetId > 0){
+            $where['target_id'] = $targetId;
+        }
+        
+        $total = $this->db->count('shares', ['AND' => $where]);
+        return (int)($total ?: 0);
+    }
+
+    //Liste les partages d'un utilisateur avec pagination => filtrer par target_id (file ou folder) optionnellement
+    public function listSharesByUser(int $userId, ?int $targetId = null, int $limit = 20, int $offset = 0): array
+    {
+        //construction dynamique du WHERE
+        $where = ['user_id' => $userId];
+
+        if($targetId !== null && $targetId > 0){
+            $where['target_id'] = $targetId;
+        }
+
+         $shares = $this->db->select('shares', '*', [
+            'AND' => $where,
+            'ORDER' => ['created_at' => 'DESC'],
+            'LIMIT' => [$offset, $limit]
+        ]);
+
+        return $shares;
+        
     }
 
 
