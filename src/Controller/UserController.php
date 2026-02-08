@@ -190,43 +190,7 @@ class UserController
     }
 
 
-    // DELETE /users/{id} - Supprime un utilisateur que pour admin ****************************************************************************OK
-    public function delete(Request $request, Response $response, array $args): Response
-    {
-        //vérif authentification d'admin
-        try {
-            $authUser = $this->auth->getAuthenticatedUserFromToken($request);
-            $isAdmin = (int)$authUser['is_admin'];
-
-            if($isAdmin === 0){
-                return $this->json($response, ['error' => "Accès interdit"], 403);
-            }
-
-        } catch (\Exception $e) {
-            return $this->json($response, ['error' => $e->getMessage()], 401);
-        }
-
-        $id = (int)($args['id'] ?? 0);
-        if ($id <= 0) {
-            return $this->json($response, ['error' => 'Id utilisateur invalide'], 400); 
-        }
-
-        $targetUser = $this->users->find($id);
-        if (!$targetUser) {
-            return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
-        }
-
-        $deleted = $this->users->delete($id); // si possible, retourne true/false
-        if ($deleted === false) {
-            return $this->json($response, ['error' => 'Suppression impossible'], 500);
-        }
-
-        //réponse REST sans body
-        return $response->withStatus(204);
-    }
-
-
-     // ROUTE DASHBOARD (protégée)
+    // ROUTE DASHBOARD (protégée)
     public function dashboard(Request $request, Response $response)
     {
         // Essayer de récupérer via Header

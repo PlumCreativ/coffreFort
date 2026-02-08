@@ -132,8 +132,7 @@ class FileController {
                     'offset'    => $offset
                 ], 200);
             }
-
-            $files = $this->files->listFilesByFolder($folderId, $userId, $limit, $offset);
+            $files = $this->files->listFilesByFolderPaginated($folderId, $userId, $limit, $offset);
 
         } else {
             // Sinon, retourner tous les fichiers
@@ -149,7 +148,6 @@ class FileController {
                     'offset'    => $offset
                 ], 200);
             }
-
             $files = $this->files->listFilesByUser($userId, $limit, $offset);
         }
 
@@ -257,8 +255,6 @@ class FileController {
         return $this->json($response, $responseData, 200);
     }
 
- 
-
         
     // GET /files/{id}/versions  => liste complète paginée des versions  ************************************************************************************
     public function listVersions(Request $request, Response $response, array $args): Response
@@ -279,7 +275,6 @@ class FileController {
             return $this->json($response, ['error' => 'id invalide'], 400);
         }
 
-        
         //vérif fichier et owner
         $file = $this->files->find($fileId);
         if(!$file){
@@ -295,12 +290,10 @@ class FileController {
         $limit = isset($queryParams['limit']) ? min(100, max(1, (int)$queryParams['limit'])) : 20; // garantir: 1 < limit < 20
         $offset = isset($queryParams['offset']) ? max(0, (int)$queryParams['offset']) : 0;
 
-
-         //limit de sécurité => à supprimer si ça marche
+        //limit de sécurité => à supprimer si ça marche
         // if($limit <= 0) $limit = 20;
         // if($limit > 100) $limit = 100;
         // if($offset < 0) $offset = 0;
-
 
         //Compter AVANT de récupérer (pour éviter de charger si 0 résultats)
         $total = $this->files->getVersionCount($fileId);
@@ -343,7 +336,7 @@ class FileController {
         ], 200);
     }
 
-    // POST /files  (upload via form-data)************************************************OK
+    // POST /files  (upload via form-data)************************************************************************************** OK
     public function upload(Request $request, Response $response): Response
     {
         //vérif authentification => décoder le token JWT depuis le header Authorization
@@ -391,7 +384,6 @@ class FileController {
             return $this->json($response, ['error' => $e->getMessage()], 400);
         }
             
-
         //Récupérer folder_id depuis form-data ou query !
         $parsedBody = $request->getParsedBody();
         //$folderId = 5; //=> pour le test avec postman;
@@ -401,8 +393,6 @@ class FileController {
             return $this->json($response, ['error' => 'Dossier non spécifié'], 400);
         }
 
-        
-        
         //vérif dossier existe
         if(!$this->files->folderExists($folderId)) {
             return $this->json($response, ['error' => 'Dossier introuvable'], 404);
@@ -465,7 +455,6 @@ class FileController {
             $version = 1;
             $aadContent = "file:$fileId:v$version";
             $aadKey     = "filekey:$fileId:v$version";
-
 
              // Lire le fichier téléversé par stream
             try {
@@ -546,7 +535,7 @@ class FileController {
     }
 
 
-     // POST /files/{id}/versions*********************************************************OK
+     // POST /files/{id}/versions*************************************************************************************************** OK
     public function uploadNewVersion(Request $request, Response $response, array $args): Response
     {
         
@@ -746,7 +735,7 @@ class FileController {
     }
 
     /**
-     * Vérifie si deux types Mime sont compatibles
+     * Vérifie si deux types Mime sont compatibles =>ok
      */
     private function isMimeTypeCompatible(String $expected, String $received): bool
     {
@@ -778,7 +767,7 @@ class FileController {
 
 
     /**
-     * Valide un fichier uploadé (taille, extension, MIME type)
+     * Valide un fichier uploadé (taille, extension, MIME type) =>ok
      * 
      * @throws \RuntimeException Si le fichier n'est pas valide
      */
@@ -1076,7 +1065,7 @@ class FileController {
     }
 
 
- /******************* Functions PRIVATE ***************************************************/
+ /***************************************** Functions PRIVATE ***************************************************************/
 
     private function json(Response $response, array $data, int $status): Response{
         $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT));
@@ -1085,7 +1074,7 @@ class FileController {
 
    
 
-  /****************************************************************************************/     
+  /************************************************************************************************************************/     
 
 
     /**
@@ -1246,6 +1235,71 @@ class FileController {
     }
 
 
+    //PUT /files/{id} => renommer un fichier ********************************************************************************* OK
+    public function renameFile(Request $request, Response $response, array $args): Response
+    {
+        // récuperer id via JWT
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+            $userId = (int)$user['id'];
+
+        } catch (\Exception $e) {
+            $code = (int)($e->getCode() ?: 401);
+            return $this->json($response, ['error' => $e->getMessage()], $code);
+        }
+
+        $id = (int)($args['id'] ?? 0);
+        if($id <= 0){
+            return $this->json($response, ['error' => 'id invalide'], 400);
+        }
+
+        $file = $this->files->find($id);
+        if(!$file){
+            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
+        }
+
+        //est-ce que le user est le propriètaire
+        if((int)$file['user_id'] !== $userId){
+            return $this->json($response, ['error' => 'Acces interdit'], 403);
+        }
+
+        $body = $request->getParsedBody();
+        if(!is_array($body)) $body = [];
+
+        $newName = isset($body['name']) ? trim((string)$body['name']) : '';
+        if($newName === ''){
+            return $this->json($response, ['error' => 'Nom obligatoire'], 400);
+        }
+
+        // interdit quelques caractères => \,/,:,*,?,",<,>,|
+        if (preg_match('/[\\\\\\/\\:\\*\\?\\"\\<\\>\\|]/', $newName)) {
+            return $this->json($response, ['error' => 'Nom invalide (caracteres interdits)'], 400);
+        }
+
+        //empêcher le doublon dans le même dossier
+        $folderId = (int)$file['folder_id'];
+        if($this->files->fileNameExistForUser($userId, $folderId, $newName, $id)){
+            return $this->json($response, ['error' => 'Un fichier avec ce nom existe déjà ici'], 409);
+        }
+
+        $ok = $this->files->renameFile($id, $newName);
+        if(!$ok){
+
+            return $this->json($response, [
+                'error'         => 'Aucun changement',
+                'id'            => $id,
+                'original_name' => $newName
+            ], 200);
+        }
+
+        return $this->json($response, [
+            'message'       => 'Fichier renomme',
+            'id'            => $id,
+            'original_name' => $newName
+        ], 200);
+    }
+
+
    
 
 
@@ -1276,7 +1330,7 @@ class FileController {
     }
 
 
-    // PUT /quota - Met à jour le quota d'un utilisateur
+    // PUT /quota - Met à jour le quota d'un utilisateur (PAR USER) =>actuellement je ne l'utilise pas
     public function setQuota(Request $request, Response $response): Response
     {
         try {
@@ -1334,7 +1388,7 @@ class FileController {
     }
 
 
-    // GET /me/quota — utilisé / total / %
+    // GET /me/quota — utilisé / total / % 
     public function meQuota(Request $request, Response $response): Response
     {
         // récuperer id via JWT
@@ -1369,7 +1423,7 @@ class FileController {
     }
 
 
-   // GET /me/activity — derniers événements (uploads + downloads)
+   // GET /me/activity — derniers événements (uploads + downloads) ?????
     public function meActivity(Request $request, Response $response): Response
     {
         // récuperer id via JWT
@@ -1380,8 +1434,11 @@ class FileController {
             return $this->json($response, ['error' => $e->getMessage()], 401);
         }
 
-        $limit = min(100, (int)($request->getQueryParams()['limit'] ?? 20));
-        $offset = max(0, (int)($request->getQueryParams()['offset'] ?? 0));
+         // paramètre de pagination
+        $queryParams = $request->getQueryParams();
+        $limit = isset($queryParams['limit']) ? min(100, max(1, (int)$queryParams['limit'])) : 20; // garantir: 1 < limit < 20
+        $offset = isset($queryParams['offset']) ? max(0, (int)$queryParams['offset']) : 0;
+
 
         $uploads = $this->files->recentUploads($userId, $limit);
         $downloads = $this->files->recentDownloads($userId, $limit, $offset);
@@ -1575,7 +1632,7 @@ class FileController {
     }
 
 
-    //PUT /folders/{id} => renommer un dossier ****************************************************************** OK
+    //PUT /folders/{id} => renommer un dossier ********************************************************************************* OK
     public function renameFolder(Request $request, Response $response, array $args): Response
     {
         // récuperer id via JWT
@@ -1634,76 +1691,6 @@ class FileController {
     }
 
 
-
-
-
-
-
-
-
-    //PUT /files/{id} => renommer un dossier
-    public function renameFile(Request $request, Response $response, array $args): Response
-    {
-        // récuperer id via JWT
-        try {
-            $user = $this->auth->getAuthenticatedUserFromToken($request);
-            $userId = (int)$user['id'];
-
-        } catch (\Exception $e) {
-            $code = (int)($e->getCode() ?: 401);
-            return $this->json($response, ['error' => $e->getMessage()], $code);
-        }
-
-        $id = (int)($args['id'] ?? 0);
-        if($id <= 0){
-            return $this->json($response, ['error' => 'id invalide'], 400);
-        }
-
-        $file = $this->files->find($id);
-        if(!$file){
-            return $this->json($response, ['error' => 'Fichier introuvable'], 404);
-        }
-
-        //est-ce que le user est le propriètaire
-        if((int)$file['user_id'] !== $userId){
-            return $this->json($response, ['error' => 'Acces interdit'], 403);
-        }
-
-        $body = $request->getParsedBody();
-        if(!is_array($body)) $body = [];
-
-        $newName = isset($body['name']) ? trim((string)$body['name']) : '';
-        if($newName === ''){
-            return $this->json($response, ['error' => 'Nom obligatoire'], 400);
-        }
-
-        // interdit quelques caractères => \,/,:,*,?,",<,>,|
-        if (preg_match('/[\\\\\\/\\:\\*\\?\\"\\<\\>\\|]/', $newName)) {
-            return $this->json($response, ['error' => 'Nom invalide (caracteres interdits)'], 400);
-        }
-
-        //empêcher le doublon dans le même dossier
-        $folderId = (int)$file['folder_id'];
-        if($this->files->fileNameExistForUser($userId, $folderId, $newName, $id)){
-            return $this->json($response, ['error' => 'Un fichier avec ce nom existe déjà ici'], 409);
-        }
-
-        $ok = $this->files->renameFile($id, $newName);
-        if(!$ok){
-
-            return $this->json($response, [
-                'error'         => 'Aucun changement',
-                'id'            => $id,
-                'original_name' => $newName
-            ], 200);
-        }
-
-        return $this->json($response, [
-            'message'       => 'Fichier renomme',
-            'id'            => $id,
-            'original_name' => $newName
-        ], 200);
-    }
 
 }
 

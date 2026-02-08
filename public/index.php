@@ -41,6 +41,7 @@ $shareController = new ShareController($database);
 //routes pour les admin
 $app->get('/admin/users/quotas', [$adminController, 'listUsersWithQuota']); //JO        //Liste tous les utilisateurs avec leurs quotas QUE Admin
 $app->put('/admin/users/{id}/quota', [$adminController, 'updateUserQuota']);//JO        //modifier le quota d'un utilisateur QUE ADMIN
+$app->delete('admin/users/{id}', [$adminController, 'deleteUser']);//JO postman kicserelni
 
 // routes pour les fichiers
 $app->get('/files', [$fileController, 'list']); // JO                                    //Lister les fichiers par dossier = ok
@@ -73,7 +74,7 @@ $app->put('/folders/{id}', [$fileController, 'renameFolder']);//JO              
 // routes pour les users
 $app->get('/users', [$userController, 'list']);//JO
 $app->get('/users/{id}', [$userController, 'show']);//JO
-$app->delete('/users/{id}', [$userController, 'delete']);//JO
+
 $app->post('/auth/register', [$userController, 'register']);//JO                //Créer un compte utilisateur = ok
 $app->post('/auth/login', [$userController, 'login']); //JO                     //Authentifier un utilisateur et obtenir un JWT = ok
 $app->post('/logout', [$userController,'logout']); // il n'y a pas
@@ -99,6 +100,7 @@ $app->get('/', function ($request, $response) {
         'endpoints' => [
             'GET /admin/users/quotas',
             'PUT /admin/users/{id}/quota',
+            'DELETE /admin/users/{id}',
 
             'GET /files',
             'GET /files?folder={id}',
@@ -123,7 +125,7 @@ $app->get('/', function ($request, $response) {
 
             'GET /users',
             'GET /users/{id}',
-            'DELETE /users/{id}',
+            //'DELETE /users/{id}', que admin!
             'POST /auth/register',
             'POST /auth/login',
             'POST /logout',

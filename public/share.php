@@ -49,7 +49,7 @@
 
                 <div class="file-info fs-6">
                     <!-- <p><strong>Auteur du fichier :</strong> <span id="file-author"></span></p> -->
-                    <p class= "py-1 pt-3"><strong>Taille du fichier :</strong> <span id="file-size"></span></p>
+                    <p class= "py-1 pt-3"><strong>Taille :</strong> <span id="file-size"></span></p>
                     <p class= "py-1"><strong>Créé le :</strong> <span id="file-date"></span></p>
 
                     <!-- badge et version courant => à afficher si 'versions_count > 1'-->
@@ -86,6 +86,8 @@
                             Ce fichier possède plusieurs versions, mais ce lien ne permet pas de choisir une version spécifique.
                         </small>
                     </div>
+
+                    <div id="folder-files-list" class="mb-2"></div>
 
                     <!-- expiration et téléchargement restant-->
                     <p class= "py-1"><strong>Expiration :</strong> <span id="expires-left">-</span></p>

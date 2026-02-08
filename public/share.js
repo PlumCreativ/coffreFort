@@ -189,30 +189,71 @@ fetch(metaurl)
         return data;
     })
 
-    .then(meta => {
-        const file = meta.file || null;
+    .then(share => {
+        console.log("Métadonnées reçues:", share);
 
-        //nom affiché
-        const displayName = (file && file.original_name) || meta.label || "Ressource partage";
-        setText("#file-name", displayName);
+        const kind = share.kind; // 'file' ou 'folder' <=> si je mets share.kind || 'file' => ça va forcer le type fichier même pour les dossiers => pas bon
+        const metaData = share.meta || {};
+       
+        let displayName;
+        let fileSize;
+        let createdAt;
 
-        //taille
-        setText("#file-size", humanSize(file?.size));
+        if(kind === 'file'){
+            displayName = metaData.original_name || share.label || "Fichier partagé";
+            fileSize = metaData.size;
+            createdAt = metaData.created_at;
 
-        // date de création
-        setText("#file-date", file?.created_at ? formatDateTime(file.created_at) : "-");
+             //gestion des versions
+            const versionsCount = metaData.versions_count ?? 0;
+            const currentVersion = metaData.current_version || null;
+            //sélecteur si exposition publique va être autorisée => actuellement .......????????
+            const allowFixedVersions = share.allow_fixed_versions === true;
 
-        //gestion des versions
-        const versionsCount = file?.versions_count ?? 0;
-        const currentVersion = file?.current_version || null;
+            handleFileVersions(versionsCount, currentVersion, allowFixedVersions, token);
+        }else if (kind === 'folder'){
+            displayName = metaData.name || share.label || "Dossier partagé";
+            fileSize = metaData.total_size;
+            createdAt = metaData.created_at;
 
-        //sélecteur si exposition publique va être autorisée => actuellement .......????????
-        const allowFixedVersions = meta.allow_fixed_versions === true;
+            //afficher la liste des fichiers du dossier
+            displayFolderContents(metaData.files || []);
 
-        // const currentVersionDate = file?.current_version?.created_at ?? null;
+            //masquer la section des versions pour les dossiers
+            hide("#versions-box");
+            hide("#version-picker-wrap");
+            hide("#versions-info-only");
+        }
 
-        //par défaut tout est caché
-        // sécurité
+        //affichage commun pour les fichiers et dossiers
+        setText("#file-name", displayName);                                  // nom affiché
+        setText("#file-size", humanSize(fileSize));                          // taille
+        setText("#file-date", createdAt ? formatDateTime(createdAt) : "-");  // date de création
+
+        //expiration
+        handleExpiration(share.expires_at);
+
+        //téléchargement restant
+        handleRemainingUses(share.max_uses, share.remaining_uses);
+
+        //config du lien de téléchargement
+        setupDownloadLink(token);
+
+    })    
+    .catch(err => {
+        console.log("Erreur chargement métadonnées: ", err);
+
+        setText("#file-name", "Lien invalide ou expiré");
+        setText("#file-size", "-");
+        setText("#file-date", "-");
+        hide("#dl-link");
+
+        showError(err.message || "Impossible de charger les informations du partage.");
+    });
+
+    //gestion les versions d'un fichier partagé (uniquement pour les partages de type fichier)
+    function handleFileVersions(versionsCount, currentVersion, allowFixedVersions, token){
+
         hide("#versions-box");
         hide("#version-picker-wrap");
         hide("#versions-info-only");
@@ -242,9 +283,38 @@ fetch(metaurl)
                 show("#versions-info-only");
             }
         }
+    }
+
+    //affichage du contenu du dossier partagé
+    function displayFolderContents(files){
+       
+        //section pour afficher la liste des fichiers d'un dossier partagé => à faire!!
+        const filesList = document.querySelector("#folder-files-list");
+        if(!filesList) return;
+
+        if(files.length === 0){
+            filesList.innerHTML = "<p>Dossier vide</p>";
+            return;
+        }
+
+        filesList.innerHTML = files.map(file => `
+            <div class="file-item">
+                <p>
+                    <span class="file-name"><strong>${file.name}</strong></span>
+                    <span class="file-size fst-italic">${humanSize(file.size)}</span>
+                    <span class="file-date fst-italic">${formatDateTime(file.created_at)}</span>
+                </p>
+            </div>
+        `).join("");
+        
+        show("#folder-files-list");
+    }
+
+    //gestion de l'expiration d'un partage
+    function handleExpiration(expiresAt){
 
         //expiration
-        const left = daysLeft(meta.expires_at);
+        const left = daysLeft(expiresAt);
         if(left != null){
             const txt = left <= 0 ? "Expiré" : `Expire dans ${left} jour(s)`;
             setText("#expires-left", txt);
@@ -259,15 +329,18 @@ fetch(metaurl)
                     expiresEl.style.color = "orange";
                     expiresEl.style.fontWeight = "bold";
                 }
-            }else{
-                setText("#expires-left", "Jamais");
             }
+        }else{
+            setText("#expires-left", "Jamais");
         }
+    }
 
-        //téléchargement restant
-        if(meta.max_uses !== null && meta.remaining_uses !== null) {
-            const remaining = parseInt(meta.remaining_uses);
-            const max = parseInt(meta.max_uses);
+    //gestion des téléchargements restants
+    function handleRemainingUses(maxUses, remainingUses){
+       
+        if(maxUses !== null && remainingUses !== null) {
+            const remaining = parseInt(remainingUses);
+            const max = parseInt(maxUses);
 
             let usesText;
             if(remaining <= 0){
@@ -289,30 +362,26 @@ fetch(metaurl)
                     usesEl.style.color = "orange";
                     usesEl.style.fontWeight = "bold";
                 }
-            }else{
-                setText("#uses-left", Illimité);
             }
-
-            //config du lien de téléchargement
-            const downloadBtn = document.querySelector("#dl-link");
-            if (downloadBtn) {
-                const downloadUrl = `/s/${encodeURIComponent(token)}/download`;
-                downloadBtn.href = downloadUrl;
-                downloadBtn.setAttribute("data-download-url", downloadUrl);
-                show("#dl-link");
-            }
+        }else{
+            setText("#uses-left","Illimité");
         }
-    })
-    .catch(err => {
-        console.log("Erreur chargement métadonnées: ", err);
+    }
 
-        setText("#file-name", "Lien invalide ou expiré");
-        setText("#file-size", "-");
-        setText("#file-date", "-");
-        hide("#dl-link");
 
-        showError(err.message || "Impossible de charger les informations du partage.");
-    });
+    //config du lien de téléchargement
+    function setupDownloadLink(token){
+       
+        const downloadBtn = document.querySelector("#dl-link");
+        if (downloadBtn) {
+            const downloadUrl = `/s/${encodeURIComponent(token)}/download`;
+            downloadBtn.href = downloadUrl;
+            downloadBtn.setAttribute("data-download-url", downloadUrl);
+            show("#dl-link");
+        }
+    }
+
+
 
 //=============== gestion de téléchargement ======================
 
