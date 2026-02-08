@@ -101,11 +101,11 @@ body {
 }
 
 
-#versions-info-only,
+/* #versions-info-only,
 #versions-box,
 #version-picker-wrap{
     display: none;
-}
+} */
 
 .btn-link:hover {
     text-decoration: underline;

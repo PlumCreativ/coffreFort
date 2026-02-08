@@ -3,9 +3,6 @@
 
 FROM php:8.2-apache
 
-# Extensions PHP
-RUN docker-php-ext-install pdo pdo_mysql
-
 # Augmenter la taille max upload (PHP)
 RUN { \
     echo "upload_max_filesize=20M"; \
@@ -15,8 +12,11 @@ RUN { \
     echo "max_input_time=120"; \
 } > /usr/local/etc/php/conf.d/99-uploads.ini
 
-# Outils utiles pour Composer
-RUN apt-get update && apt-get install -y git zip unzip && rm -rf /var/lib/apt/lists/*
+#Installer les dépendances système AVANT d'installer les extensions PHP
+RUN apt-get update && apt-get install -y git zip unzip libzip-dev && rm -rf /var/lib/apt/lists/*
+
+# Installer l'extensions pour PHP + le zip
+RUN docker-php-ext-install pdo pdo_mysql zip
 
 # Apache: activer mod_rewrite et pointer vers/public
 RUN a2enmod rewrite

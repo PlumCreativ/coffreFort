@@ -18,8 +18,23 @@ class FileRepository
         return $this->db->select('files', '*');
     }
 
+    //liste tous les fichiers
+    public function listFilesByFolder(int $folderId): array
+    {
+        return $this->db->select('files', [
+            'id',
+            'original_name',
+            'mime',
+            'size',
+            'created_at',
+            'updated_at'
+        ], [
+            'folder_id' => $folderId
+        ]);
+    }
+
     // liste les fichiers d'un dossier avec pagination
-    public function listFilesByFolder(int $folderId, int $userId, int $limit = 20, int $offset = 0): array
+    public function listFilesByFolderPaginated(int $folderId, int $userId, int $limit = 20, int $offset = 0): array
     {
         return $this->db->select('files', '*', [
             'AND' => [
@@ -461,7 +476,6 @@ class FileRepository
     {
         return (bool)$this->db->get('folders', 'id', ['id' => $folderId]);
     }
-
 
     //renomme un folder
     public function renameFolder(int $id, string $newName): bool
