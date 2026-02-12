@@ -30,6 +30,8 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      # DB_USER: root
+      # DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     depends_on:
       - mysql
     networks:
@@ -39,7 +41,7 @@ services:
   mysql:
     image: mysql:8.0
     container_name: coffreFort-db
-    # ports:
+    # ports: => il ne faut pas car le phpmyadmin communique avec la BDD via le réseau interne de Docker, pas besoin d'exposer le port MySQL à l'extérieur
     #   - "3306:3306" # ok en DEV; à NE PAS exposer en prod
     env_file:
       - ./.env
@@ -59,7 +61,11 @@ services:
 
       # Optionnel: script SQL auto au 1er démarrage (alternative à setup_db.php)
       # Monter le script d'initialisation
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro #ro = read only
+      # => il ne faut pas pour le backup et restore => il faut le commenter!!
+      #- ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro #ro = read only
+
+      #il faut le commenter pour le backup et restore!!
+      - ./sql:/docker-entrypoint-initdb.d:ro  #=>pour lire aussi init.triggers.sql 
     networks:
       - coffreFort-network
 
@@ -75,8 +81,10 @@ services:
     environment:
       PMA_HOST: mysql
       PMA_PORT: 3306
-      PMA_USER: ${DB_USER}
-      PMA_PASSWORD: ${DB_PASSWORD}
+      # PMA_USER: root
+      PMA_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      # PMA_USER: ${DB_USER}
+      # PMA_PASSWORD: ${DB_PASSWORD}
       # UPLOAD_LIMIT: 256M
     depends_on:
       - mysql

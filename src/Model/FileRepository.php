@@ -46,8 +46,15 @@ class FileRepository
         ]);
     }
 
+    //liste tous les fichiers d'un user
+    public function listFilesByUser(int $userId){
+        return $this->db->select('files', '*', [
+            'user_id'   => $userId,
+        ]);
+    }
+
     // liste tous les fichiers d'un utilisateur avec pagination
-     public function listFilesByUser(int $userId, int $limit = 20, int $offset = 0): array
+     public function listFilesByUserPaginated(int $userId, int $limit = 20, int $offset = 0): array
     {
         return $this->db->select('files', '*', [
             'user_id'   => $userId,
@@ -368,7 +375,7 @@ class FileRepository
         return $this->db->select('file_versions', '*', ['file_id' => $fileId]);
     }
 
-    //supprime toutes les versions
+    //supprime toutes les versions 
     public function deleteAllVersions(int $fileId): bool
     {
         $result = $this->db->delete('file_versions', ['file_id' => $fileId]);
