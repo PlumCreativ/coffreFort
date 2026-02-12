@@ -66,6 +66,15 @@ class ShareRepository{
         ]);
     }
 
+    //supprimer tous les partages lié à un user
+    public function deleteSharesByUser(int $UserId): void 
+    {
+        $this->db->delete('shares', [
+            'user_id' => $UserId
+        ]);
+    }
+
+
     //pas utilisé
     public function decrementRemainingUses(int $id): bool 
     {
@@ -122,8 +131,22 @@ class ShareRepository{
             'LIMIT' => [$offset, $limit]
         ]);
 
-        return $shares;
-        
+        return $shares;   
+    }
+
+    //supprimer tous les logs de téléchargement liés aux partages d'un utilisateur
+    public function deleteDownloadLogsByUser(int $userId) : void
+    {
+        //récup tous les ids de shares de user
+        $shareIds = $this->db->select('shares', 'id', ['user_id' => $userId]);
+
+        if(!empty($shareIds)){
+
+            //supprimer les logs de téléchargement
+            $this->db->delete('downloads_log', [
+                'share_id' => $shareIds
+            ]);
+        }
     }
 
 

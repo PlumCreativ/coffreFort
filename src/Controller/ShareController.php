@@ -115,7 +115,7 @@ class ShareController{
 
             if($subfolderCount > 0){
                 return $this->json($response, [
-                    'error' => 'Impossible de partager un dossier contenant des sous-dossiers. Veuillez partager uniquement des dossiers sans arborescence.'
+                    'error' => 'Impossible de partager un dossier contenant des sous-dossiers.' //\nVeuillez partager uniquement des dossiers sans arborescence. =>trop longue
                     ], 400);
             
             }
@@ -933,7 +933,7 @@ class ShareController{
 
         //supporte que le file
         if($share['kind'] !== 'file'){
-            return $this->json($response, ['error' => 'Partage de dossier non supporté pour le moment'], 501);
+            return $this->json($response, ['error' => 'Partage de dossier versionné non supporté'], 501);
         }
 
         //autorisation d'exposer les versions

@@ -148,7 +148,7 @@ class FileController {
                     'offset'    => $offset
                 ], 200);
             }
-            $files = $this->files->listFilesByUser($userId, $limit, $offset);
+            $files = $this->files->listFilesByUserPaginated($userId, $limit, $offset);
         }
 
         return $this->json($response, [
@@ -1203,7 +1203,7 @@ class FileController {
         //ne pas supprimer si c'est la seule version
         $totalVersions = $this->files->getVersionCount($fileId);
         if($totalVersions <= 1){
-            return $this->json($response, ['error' => 'Impossible de supprimer la dernière version du fichier'], 400);
+            return $this->json($response, ['error' => 'Impossible de supprimer la dernière version du fichier'], 409);
         }
 
         // Supprimer
@@ -1618,11 +1618,11 @@ class FileController {
         }
 
         try{
-            // Supprimer en base
+            // Supprimer en base de données
              $this->files->deleteFolder($folderId);
 
             // suppression réussi => statut: 204
-            return $this->json($response, ['message' => 'Folder deleted'], 204);
+            return $this->json($response, ['message' => 'Folder supprimé avec succès'], 204);
         }catch(\Exception $e){
             return $this->json($response, [
                 'error' => 'Erreur lors de la suppression du dossier',
