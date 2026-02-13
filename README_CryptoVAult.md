@@ -1208,7 +1208,7 @@ docker exec -it coffreFort-mysql mysql -uroot -proot coffreFort
 
 ---
 
-## 👥 Équipe
+## Équipe
 
 - **Backend Lead** : Klaudia Juhasz
 - **JavaFX Developer** : Klaudia Juhasz
@@ -1216,7 +1216,7 @@ docker exec -it coffreFort-mysql mysql -uroot -proot coffreFort
 
 ---
 
-## 🗺 Roadmap
+##  Roadmap
 
 ### Version 1.0 (MVP) 
 - [x] Auth JWT (register, login)
@@ -1237,7 +1237,7 @@ docker exec -it coffreFort-mysql mysql -uroot -proot coffreFort
 - [ ] Déplacement dossiers/fichiers
 - [ ] Amélioration barre de progression JavaFX
 - [ ] Triggers supplémentaires pour audit_logs
-- [ ] Mot de passe oublié
+- [ ] Fonctionnalité "Mot de passe oublié" (réinitialisation par email)
 - [ ] Renforcement politique mots de passe
 
 ### Version 3.0 (Futur)
