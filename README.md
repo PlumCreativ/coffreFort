@@ -53,7 +53,7 @@ Ce projet prolonge le TP « Mini coffre-fort REST (MVC-API-REST) » en ajoutant 
 
 ---
 
-## ✨ Fonctionnalités
+## Fonctionnalités
 
 ### Gestion des utilisateurs
 -  Inscription avec validation email
@@ -96,7 +96,7 @@ Ce projet prolonge le TP « Mini coffre-fort REST (MVC-API-REST) » en ajoutant 
 
 ---
 
-## 🏗️ Architecture technique
+##  Architecture technique
 
 ### Stack technologique
 
