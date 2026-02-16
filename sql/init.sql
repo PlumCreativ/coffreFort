@@ -63,6 +63,7 @@ CREATE TABLE `shares` (
     `kind` ENUM('file', 'folder') NOT NULL,
     `target_id` BIGINT UNSIGNED NOT NULL,
     `token` CHAR(64) NOT NULL UNIQUE,
+    `token_sig` CHAR(64) NOT NULL,
     `label` VARCHAR(255) NULL,
     `expires_at` DATETIME NULL,
     `max_uses` INT UNSIGNED NULL,
@@ -74,7 +75,7 @@ CREATE TABLE `shares` (
 );
 
 -- à voir s'il faut car pour l'instant ok 
-ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
+-- ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
 
 
 DROP TABLE IF EXISTS `downloads_log`;
@@ -91,37 +92,40 @@ CREATE TABLE `downloads_log` (
   CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
 
--- Index utiles =????
-CREATE INDEX idx_folders_user ON folders(user_id);
-CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
-CREATE INDEX idx_shares_token ON shares(token);
-CREATE INDEX idx_downloads_share ON downloads_log(share_id);
-CREATE INDEX idx_file_versions_created_at ON file_versions(created_at);
+
 
 DROP TABLE IF EXISTS `audit_logs`;
 CREATE TABLE `audit_logs`(
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `user_id` BIGINT UNSIGNED NULL,
     `action` ENUM(
-        'USER_LOGIN', 'USER_REGISTER', 'USER_LOGOUT',               -- authentification
-        'FOLDER_CREATE', 'FOLDER_RENAME', 'FOLDER_DELETE',          -- gestion des dossiers
-        'FILE_UPLOAD', 'FILE_RENAME', 'FILE_DELETE',                -- gestion des fichiers
-        'FILE_VERSION_UPLOAD', 'FILE_VERSION_DELETE',               -- gestion des versions de fichiers
-        'SHARE_CREATE', 'SHARE_REVOKE', 'SHARE_DELETE',             -- gestion des partages
-        'FILE_DOWNLOAD', 'FILE_VERSION_DOWNLOAD', 'SHARE_DOWNLOAD', -- téléchargement
-        'QUOTA_UPDATE', 'USER_DELETE',                              -- gestion du compte
+        'USER_LOGIN', 'USER_REGISTER', 'USER_LOGOUT',              
+        'FOLDER_CREATE', 'FOLDER_RENAME', 'FOLDER_DELETE',          
+        'FILE_UPLOAD', 'FILE_RENAME', 'FILE_DELETE',               
+        'FILE_VERSION_UPLOAD', 'FILE_VERSION_DELETE',               
+        'SHARE_CREATE', 'SHARE_REVOKE', 'SHARE_DELETE',            
+        'FILE_DOWNLOAD', 'FILE_VERSION_DOWNLOAD', 'SHARE_DOWNLOAD', 
+        'QUOTA_UPDATE', 'USER_DELETE',                               
         'OTHER'
     ) NOT NULL,
-    `table_name` VARCHAR(50) NULL,                                  --table concerné
-    `record_id` BIGINT UNSIGNED NULL,                               --id de l'enregistrement concerné (ex: id du fichier téléchargé)
-    `details` TEXT NULL,                                            --infos complémentaires (ex: nom du fichier téléchargé)
-    `ip_address` VARCHAR(50) NULL,                                  --IP de l'utilisateur
-    `user_agent` VARCHAR(255) NULL,                                 --navigateur de l'utilisateur
+    `table_name` VARCHAR(50) NULL,                                  
+    `record_id` BIGINT UNSIGNED NULL,                               
+    `details` TEXT NULL,                                            
+    `ip_address` VARCHAR(50) NULL,                                  
+    `user_agent` VARCHAR(255) NULL,                                 
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
      INDEX `idx_user_id` (user_id),
      INDEX `idx_action` (action),
      INDEX `idx_created_at` (created_at),
      INDEX `idx_table_record` (table_name, record_id)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+ -- Index utiles =????
+CREATE INDEX idx_folders_user ON folders(user_id);
+CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
+CREATE INDEX idx_shares_token ON shares(token);
+CREATE INDEX idx_downloads_share ON downloads_log(share_id);
+CREATE INDEX idx_file_versions_created_at ON file_versions(created_at);
 

@@ -9,12 +9,22 @@ use Slim\Psr7\UploadedFile;
 
 require __DIR__ . '/../vendor/autoload.php';
 
+// il faut charger les variables d'environnement depuis .env
+// $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+// $dotenv->load();
+
 $database = new Medoo([
+    // 'type'      => 'mysql',
+    // 'host'      => 'mysql',
+    // 'database'  => 'coffreFort',
+    // 'username'  => 'coffreFort',
+    // 'password'  => '5678_Juklau+147!',
+
     'type'      => 'mysql',
-    'host'      => 'mysql',
-    'database'  => 'coffreFort',
-    'username'  => 'coffreFort',
-    'password'  => '5678_Juklau+147!',
+    'host'      => getenv('DB_HOST') ?: 'mysql',                //Utiliser getenv()
+    'database'  => getenv('DB_NAME') ?: 'coffreFort',
+    'username'  => getenv('DB_USER') ?: 'root',
+    'password'  => getenv('DB_PASSWORD') ?: '',
 ]);
 
 $app = AppFactory::create();
