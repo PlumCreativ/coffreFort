@@ -6,7 +6,7 @@
     private static $instance = null;
     private $connection;
 
-    private $host; // 'mysql' est le nom du service dans docker-compose.yml
+    private $host; // 'mysql' est le nom du service dans docker-compose.yml 
     private $db;
     private $user;
     private $pass;

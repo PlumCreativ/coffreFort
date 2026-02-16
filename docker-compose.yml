@@ -10,6 +10,7 @@ services:
     ports: 
       - "9081:80"
     volumes:
+
       # Monter le code source dans le conteneur => à monte précisément ce dont Apache a besoin
       - ./public:/var/www/html/public
       - ./src:/var/www/html/src
@@ -48,8 +49,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME} # création de la BDD au premier démarrage
-      MYSQL_USER: ${DB_USER} # création l'utilisateur applicatif
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      #MYSQL_USER: ${DB_USER} # création l'utilisateur applicatif  => il faut enlever si je veux me connecter en root depuis phpmyadmin
+      #MYSQL_PASSWORD: ${DB_PASSWORD}                              => il faut enlever si je veux me connecter en root depuis phpmyadmin
       TZ: Europe/Paris
     command: >
       --default-authentication-plugin=mysql_native_password
