@@ -1,0 +1,12 @@
+[Unit]
+Description=Centralis Docker Backup Timer
+Requires=centralis-backup.service
+
+[Timer]
+# Exécution quotidienne à 2h00
+OnCalendar=daily
+OnCalendar=02:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
