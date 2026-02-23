@@ -1,0 +1,11 @@
+[Unit]
+Description=Centralis Docker Backup
+After=docker.service
+
+[Service]
+Type=oneshot
+User=centralis
+WorkingDirectory=/home/centralis/Centralis_11_11
+ExecStart=/bin/bash /home/centralis/Centralis_11_11/backup.sh
+StandardOutput=append:/home/centralis/backups/systemd.log
+StandardError=append:/home/centralis/backups/systemd-error.log
