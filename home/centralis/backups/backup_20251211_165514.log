@@ -1,0 +1,11 @@
+[0;32m[2025-12-11 16:55:14][0m ==========================================
+[0;32m[2025-12-11 16:55:14][0m Début du backup coffreFort
+[0;32m[2025-12-11 16:55:14][0m ==========================================
+[0;32m[2025-12-11 16:55:14][0m Vérification des prérequis...
+[0;32m[2025-12-11 16:55:15][0m Prérequis validés ✓
+[0;32m[2025-12-11 16:55:15][0m === Début du backup_database de la base de données ===
+[0;32m[2025-12-11 16:55:24][0m Backup global de toutes les bases de données MySQL...
+[0;32m[2025-12-11 16:55:27][0m ✓ Backup global réussi (4.0K	/Users/admin-27904/Documents/coffreFort/home/centralis/backups/coffreFort_backup_20251211_165514/sql/coffreFort.sql.gz)
+[0;32m[2025-12-11 16:55:27][0m === Backup de la base de données terminé ✓ ===
+[0;32m[2025-12-11 16:55:27][0m === Début du backup des volumes Docker ===
+[0;32m[2025-12-11 16:55:27][0m Backup du volume de données PostgreSQL...
