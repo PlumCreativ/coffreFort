@@ -4,13 +4,13 @@ USE `coffreFort`;
 
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
-  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `email` VARCHAR(255) NOT NULL UNIQUE,
-  `pass_hash` VARCHAR(255) NOT NULL,
-  `quota_total` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-  `quota_used` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-  `is_admin` TINYINT(1) NOT NULL DEFAULT 0,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `email` VARCHAR(255) NOT NULL UNIQUE,
+    `pass_hash` VARCHAR(255) NOT NULL,
+    `quota_total` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    `quota_used` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    `is_admin` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 DROP TABLE IF EXISTS `folders`;
@@ -42,7 +42,7 @@ CREATE TABLE `files`(
 
 DROP TABLE IF EXISTS `file_versions`;
 CREATE TABLE `file_versions`(
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, 
     `file_id` BIGINT UNSIGNED,
     `version` INT UNSIGNED NOT NULL,
     `stored_name` VARCHAR(150) NOT NULL,
@@ -58,24 +58,24 @@ CREATE TABLE `file_versions`(
 
 DROP TABLE IF EXISTS `shares`;
 CREATE TABLE `shares` (
-  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `user_id` BIGINT UNSIGNED NOT NULL,
-  `kind` ENUM('file', 'folder') NOT NULL,
-  `target_id` BIGINT UNSIGNED NOT NULL,
-  `token` CHAR(64) NOT NULL UNIQUE,
-  `label` VARCHAR(255) NULL,
-  `expires_at` DATETIME NULL,
-  `max_uses` INT UNSIGNED NULL,
-  `remaining_uses` INT UNSIGNED NULL,
-  `is_revoked` TINYINT(1) NOT NULL DEFAULT 0,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `allow_fixed_versions` TINYINT(1) NOT NULL DEFAULT 0,
-  CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `kind` ENUM('file', 'folder') NOT NULL,
+    `target_id` BIGINT UNSIGNED NOT NULL,
+    `token` CHAR(64) NOT NULL UNIQUE,
+    `token_sig` CHAR(64) NOT NULL,
+    `label` VARCHAR(255) NULL,
+    `expires_at` DATETIME NULL,
+    `max_uses` INT UNSIGNED NULL,
+    `remaining_uses` INT UNSIGNED NULL,
+    `is_revoked` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `allow_fixed_versions` TINYINT(1) NOT NULL DEFAULT 0,
+    CONSTRAINT `fk_shares_user` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- à voir s'il faut car pour l'instant ok 
-ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
-CREATE INDEX idx_shares_token ON shares(token);
+-- ALTER TABLE shares ADD COLUMN token_sig CHAR(64) NOT NULL AFTER token;
 
 
 DROP TABLE IF EXISTS `downloads_log`;
@@ -92,7 +92,37 @@ CREATE TABLE `downloads_log` (
   CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
 
--- Index utiles =????
+
+
+DROP TABLE IF EXISTS `audit_logs`;
+CREATE TABLE `audit_logs`(
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `user_id` BIGINT UNSIGNED NULL,
+    `action` ENUM(
+        'USER_LOGIN', 'USER_REGISTER', 'USER_LOGOUT',              
+        'FOLDER_CREATE', 'FOLDER_RENAME', 'FOLDER_DELETE',          
+        'FILE_UPLOAD', 'FILE_RENAME', 'FILE_DELETE',               
+        'FILE_VERSION_UPLOAD', 'FILE_VERSION_DELETE',               
+        'SHARE_CREATE', 'SHARE_REVOKE', 'SHARE_DELETE',            
+        'FILE_DOWNLOAD', 'FILE_VERSION_DOWNLOAD', 'SHARE_DOWNLOAD', 
+        'QUOTA_UPDATE', 'USER_DELETE',                               
+        'OTHER'
+    ) NOT NULL,
+    `table_name` VARCHAR(50) NULL,                                  
+    `record_id` BIGINT UNSIGNED NULL,                               
+    `details` TEXT NULL,                                            
+    `ip_address` VARCHAR(50) NULL,                                  
+    `user_agent` VARCHAR(255) NULL,                                 
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+     INDEX `idx_user_id` (user_id),
+     INDEX `idx_action` (action),
+     INDEX `idx_created_at` (created_at),
+     INDEX `idx_table_record` (table_name, record_id)
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+ -- Index utiles =????
 CREATE INDEX idx_folders_user ON folders(user_id);
 CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
 CREATE INDEX idx_shares_token ON shares(token);

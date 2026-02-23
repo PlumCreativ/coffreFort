@@ -6,7 +6,7 @@
     private static $instance = null;
     private $connection;
 
-    private $host; // 'mysql' est le nom du service dans docker-compose.yml
+    private $host; // 'mysql' est le nom du service dans docker-compose.yml 
     private $db;
     private $user;
     private $pass;
@@ -18,6 +18,7 @@
         $this->db   = getenv('DB_NAME') ?: 'coffreFort';
         $this->user = getenv('DB_USER') ?: 'coffreFort';
         $this->pass = getenv('DB_PASSWORD') ?: '';
+        //$this->pass = getenv('DB_ROOT_PASSWORD') ?: '';
 
       try {
         //connexion PDO à la base applicative

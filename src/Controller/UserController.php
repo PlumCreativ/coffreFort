@@ -61,7 +61,7 @@ class UserController
 
         // Vérifier si l'email existe déjà
         if ($this->users->findByEmail($body['email'])) {
-            return $this->json($response, ['error' => 'Email existe déjà'], 409);
+            return $this->json($response, ['error' => 'Email existe deja'], 409);
         }
 
         $isFirstUser = ($this->users->countUsers() === 0);
@@ -125,6 +125,7 @@ class UserController
             'aud'       => 'coffre-fort-users',    // audience
             'iat'       => time(),                 // date d’émission
             'exp'       => time() + 3600,          // expiration (1h)
+            //'exp'       => time() + 300,          // expiration (5min pour tests)
             'user_id'   => $user['id'],            // identifiant utilisateur
             'email'     => $user['email'],
             'is_admin'  => $user['is_admin']

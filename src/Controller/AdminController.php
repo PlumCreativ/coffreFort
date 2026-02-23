@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Model\FileRepository;
 use App\Model\UserRepository;
+use App\Model\ShareRepository;
 use App\Security\AuthService;
 use Medoo\Medoo;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -18,6 +19,8 @@ class AdminController
 
     private UserRepository $users;
     private FileRepository $files;
+    private ShareRepository $shares;
+    private string $uploadDir;
     private AuthService $auth;
     private string $jwtSecret;
 
@@ -25,6 +28,8 @@ class AdminController
     {
         $this->users = new UserRepository($db);
         $this->files = new FileRepository($db);
+        $this->shares = new ShareRepository($db);
+        $this->uploadDir = __DIR__ . '/../../storage/uploads';
 
         $this->jwtSecret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '';
         $this->auth = new AuthService($db, $this->jwtSecret);
@@ -138,7 +143,11 @@ class AdminController
         }
     }
 
-    // DELETE /users/{id} - Supprime un utilisateur que pour admin ****************************************************************************OK
+  
+    /**
+     * DELETE /admin/users/{id} - Supprime un utilisateur (ADMIN uniquement) ****************************************************************************OK
+     * Respecte le RGPD en supprimant toutes les données de l'utilisateur
+     */
     public function deleteUser(Request $request, Response $response, array $args): Response
     {
         //vérif authentification d'admin
@@ -152,23 +161,104 @@ class AdminController
             return $this->json($response, ['error' => 'Accès refusé: administrateur requis.'], 403);
         }
         
-
-        $id = (int)($args['id'] ?? 0);
-        if ($id <= 0) {
+        $targetUserId = (int)($args['id'] ?? 0);
+        if ($targetUserId <= 0) {
             return $this->json($response, ['error' => 'Id utilisateur invalide'], 400); 
         }
 
-        $targetUser = $this->users->find($id);
+         //vérif si user existe
+        $targetUser = $this->users->find($targetUserId);
         if (!$targetUser) {
             return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
         }
 
-        $deleted = $this->users->delete($id); // si possible, retourne true/false
-        if ($deleted === false) {
-            return $this->json($response, ['error' => 'Suppression impossible'], 500);
+        //emêcher la suppression de son propre compte
+        if((int)$user['id'] === $targetUserId){
+            return $this->json($response, ['error' => 'Vous ne pouvez pas supprimer votre propre compte'], 400);
         }
 
-        //réponse REST sans body
+        try{
+            //lister tous les fichiers physiques à supprimer
+            $filesToDelete = [];
+
+            //récup tous les fichier de user
+            $allFiles = $this->files->listFilesByUser($targetUserId);
+
+            foreach($allFiles as $file){
+                $fileId = (int)$file['id'];
+
+                //récupe toutes les versions d'un file
+                $versions = $this->files->getAllVersions($fileId);
+
+                //supprimer tous les versions sur le disque
+                foreach ($versions as $version) {
+                    $storedName = $version['stored_name'] ?? null;
+                    if($storedName){
+                        $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+                        $filesToDelete[] = $path;
+                    }
+                }
+
+                //fichier en clair => ancien version
+                $storedName = $file['stored_name'] ?? null;
+                if($storedName){
+                    $path = $this->uploadDir . DIRECTORY_SEPARATOR . $storedName;
+                    if(!in_array($path, $filesToDelete)){
+                        $filesToDelete[] = $path;
+                    }
+                }
+            }
+
+            //supprimer les fichiers physiques du disque
+            $deletedFiles = 0;
+            $failedFiles = [];
+
+            foreach($filesToDelete as $path){
+                if(file_exists($path)){
+                    if(@unlink($path)){
+                        $deletedFiles++;
+                    }else{
+                        $failedFiles[] = basename($path);
+                        error_log("Impossible de supprimer le fichier : $path");
+                    }
+                }
+            }
+
+            //supprimer les logs de téléchargement :
+            //downloads_log.share_id -> shares.user_id = $targetUserId
+            $this->shares->deleteDownloadLogsByUser($targetUserId);
+
+            //supprimer user en BDD
+            $deleted = $this->users->delete($targetUserId); // si possible, retourne true/false
+            
+            if ($deleted === false) {
+                return $this->json($response, ['error' => 'Suppression impossible en BDD'], 500);
+            }
+
+            //retourner un résummé
+            $summary = [
+                'message' => "Utilisateur supprimé avec succès (BDD)",
+                'user_id' => $targetUserId,
+                'email' => $targetUser['email'],
+                'deleted_files' => $deletedFiles
+            ];
+
+            if(!empty($failedFiles)){
+                $summary['warning'] = 'Certains fichiers n\'ont pas pu être supprimés du disque';
+                $summary['failed_files'] = $failedFiles;
+            }
+
+            return $this->json($response, $summary, 200);
+        
+        }catch(\Exception $e){
+            error_log("Erreur lors de la suppression de l\'utilisateur $targetUserId. ");
+            return $this->json($response, [
+                'error' => 'Erreur lors de la suppression de l\'utilisateur',
+                'details' => $e->getMessage()
+            ], 500);
+         }
+
+        // suppression réussi => statut: 204 No Content
         return $response->withStatus(204);
     }
 
