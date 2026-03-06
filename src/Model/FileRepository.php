@@ -66,7 +66,7 @@ class FileRepository
     //retourne tous les caractéristiques d'un fichierspécifique
     public function find(int $id): ?array
     {
-        return $this->db->get('files', '*', ['id' => $id]) ?: null;
+        return $this->db->get('files', ['join' => '*'], ['id' => $id]) ?: null;
     }
 
     //crée un fichier
