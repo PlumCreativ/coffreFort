@@ -120,11 +120,10 @@ class AdminControllerTest extends BaseTestCase
 
         $result = $this->adminController->listUsersWithQuota($request, $response);
 
-        $this->assertEquals(200, $result->getStatusCode());
         $data = $this->getResponseData($result);
-        $this->assertArrayHasKey('users', $data);
         $this->assertIsArray($data['users']);
         $this->assertGreaterThan(0, count($data['users']));
+        $this->assertEquals(200, $result->getStatusCode());
     }
 
     /**
@@ -158,10 +157,10 @@ class AdminControllerTest extends BaseTestCase
 
         $result = $this->adminController->listUsersWithQuota($request, $response);
 
-        $this->assertEquals(403, $result->getStatusCode());
         $data = $this->getResponseData($result);
         $this->assertArrayHasKey('error', $data);
         $this->assertStringContainsString('administrateur requis', $data['error']);
+        $this->assertEquals(403, $result->getStatusCode());
     }
 
     /**
@@ -203,7 +202,7 @@ class AdminControllerTest extends BaseTestCase
             ->andReturn(1);
 
         $result = $this->adminController->updateUserQuota($request, $response, ['id' => '2']);
-
+        
         $this->assertEquals(200, $result->getStatusCode());
         $data = $this->getResponseData($result);
         $this->assertArrayHasKey('message', $data);
@@ -247,10 +246,10 @@ class AdminControllerTest extends BaseTestCase
 
         $result = $this->adminController->updateUserQuota($request, $response, ['id' => '2']);
 
-        $this->assertEquals(400, $result->getStatusCode());
         $data = $this->getResponseData($result);
         $this->assertArrayHasKey('error', $data);
         $this->assertStringContainsString('inférieure', $data['error']);
+        $this->assertEquals(400, $result->getStatusCode());
     }
 
     /**
@@ -342,18 +341,18 @@ class AdminControllerTest extends BaseTestCase
 
         // Mock - supprimer les logs de téléchargement
         $this->database->shouldReceive('delete')
-            ->andReturn(0);
+            ->andReturn(null);
 
         // Mock - supprimer l'utilisateur
         $this->database->shouldReceive('delete')
-            ->andReturn(true);
+            ->andReturn(null);
 
         $result = $this->adminController->deleteUser($request, $response, ['id' => '2']);
 
-        $this->assertEquals(200, $result->getStatusCode());
         $data = $this->getResponseData($result);
         $this->assertArrayHasKey('message', $data);
         $this->assertEquals(2, $data['user_id']);
+        $this->assertEquals(200, $result->getStatusCode());
     }
 
     /**
@@ -387,10 +386,10 @@ class AdminControllerTest extends BaseTestCase
 
         $result = $this->adminController->deleteUser($request, $response, ['id' => '1']);
 
-        $this->assertEquals(400, $result->getStatusCode());
         $data = $this->getResponseData($result);
         $this->assertArrayHasKey('error', $data);
         $this->assertStringContainsString('propre compte', $data['error']);
+        $this->assertEquals(400, $result->getStatusCode());
     }
 
     /**
@@ -445,10 +444,10 @@ class AdminControllerTest extends BaseTestCase
 
         $result = $this->adminController->deleteUser($request, $response, ['id' => '999']);
 
-        $this->assertEquals(404, $result->getStatusCode());
         $data = $this->getResponseData($result);
         $this->assertArrayHasKey('error', $data);
         $this->assertStringContainsString('introuvable', $data['error']);
+        $this->assertEquals(404, $result->getStatusCode());
     }
 
     /**
