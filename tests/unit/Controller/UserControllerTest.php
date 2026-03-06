@@ -390,18 +390,21 @@ class UserControllerTest extends BaseTestCase
         $request = $this->createGetRequest('/users/999')
             ->withHeader('Authorization', 'Bearer ' . $token);
 
-        // Mock pour vérifier le token
+        // Mock pour vérifier le token - trouver l'admin (une fois)
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'admin@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'admin@example.com',
                 'is_admin' => 1
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - utilisateur non trouvé
-        $this->database->shouldReceive('select')
-            ->andReturn([]);
+        // Mock - utilisateur non trouvé via find(999)
+        $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['id' => 999])
+            ->andReturn(null)
+            ->once();
 
         $result = $this->userController->show($request, $response, ['id' => '999']);
 
