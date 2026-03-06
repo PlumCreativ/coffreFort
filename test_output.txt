@@ -1,0 +1,93 @@
+PHPUnit 11.5.55 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.3
+Configuration: /Users/admin-27904/Documents/coffreFort/phpunit.xml
+Random Seed:   1772807232
+
+.........F.....FE.F..FF...F.F.E.Erreur lors de la suppression de l\'utilisateur 999. 
+F..F.WFWW...F..F.                 49 / 49 (100%)
+
+Time: 00:01.063, Memory: 12.00 MB
+
+There were 2 errors:
+
+1) Tests\Controller\FileControllerTest::testGetUserQuotaSuccess
+Mockery\Exception\BadMethodCallException: Received Mockery_0_Medoo_Medoo::sum(), but no expectations were specified
+
+/Users/admin-27904/Documents/coffreFort/src/Model/FileRepository.php:116
+/Users/admin-27904/Documents/coffreFort/src/Controller/FileController.php:1404
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/FileControllerTest.php:455
+
+2) Tests\Controller\AdminControllerTest::testDeleteUserAsAdmin
+TypeError: Mockery_0_Medoo_Medoo::delete(): Return value must be of type ?PDOStatement, int returned
+
+/Users/admin-27904/Documents/coffreFort/src/Model/ShareRepository.php:146
+/Users/admin-27904/Documents/coffreFort/src/Controller/AdminController.php:229
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/AdminControllerTest.php:351
+
+--
+
+There were 12 failures:
+
+1) Tests\Controller\UserControllerTest::testShowUserNotFound
+Failed asserting that 200 matches expected 404.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/UserControllerTest.php:408
+
+2) Tests\Controller\FileControllerTest::testListVersionsSuccess
+Failed asserting that 403 matches expected 200.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/FileControllerTest.php:424
+
+3) Tests\Controller\FileControllerTest::testCreateFolderNoName
+Failed asserting that 201 matches expected 400.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/FileControllerTest.php:290
+
+4) Tests\Controller\FileControllerTest::testRenameFolderSuccess
+Failed asserting that 403 matches expected 200.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/FileControllerTest.php:331
+
+5) Tests\Controller\FileControllerTest::testDeleteFolderSuccess
+Failed asserting that 403 matches expected 200.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/FileControllerTest.php:375
+
+6) Tests\Controller\AdminControllerTest::testUpdateUserQuotaAsAdmin
+Failed asserting that 500 matches expected 200.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/AdminControllerTest.php:207
+
+7) Tests\Controller\AdminControllerTest::testListUsersWithQuotaAsAdmin
+Failed asserting that 500 matches expected 200.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/AdminControllerTest.php:123
+
+8) Tests\Controller\AdminControllerTest::testDeleteNonexistentUser
+Failed asserting that 500 matches expected 404.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/AdminControllerTest.php:448
+
+9) Tests\Controller\AdminControllerTest::testUpdateUserQuotaBelowUsedSpace
+Failed asserting that 500 matches expected 400.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/AdminControllerTest.php:250
+
+10) Tests\Controller\ShareControllerTest::testCreateShareSuccess
+Failed asserting that 403 matches expected 201.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/ShareControllerTest.php:119
+
+11) Tests\Controller\ShareControllerTest::testDeleteShareSuccess
+Failed asserting that 403 matches expected 200.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/ShareControllerTest.php:323
+
+12) Tests\Controller\ShareControllerTest::testShowShareSuccess
+Failed asserting that 403 matches expected 200.
+
+/Users/admin-27904/Documents/coffreFort/tests/unit/Controller/ShareControllerTest.php:265
+
+ERRORS!
+Tests: 49, Assertions: 80, Errors: 2, Failures: 12, Warnings: 16, PHPUnit Deprecations: 1.
