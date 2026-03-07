@@ -75,20 +75,23 @@ class ShareControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'test@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
                 'is_admin' => 0
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
         // Mock - vérifier que le fichier existe et appartient à l'utilisateur
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        $this->database->shouldReceive('get')
+            ->with('files', \Mockery::any(), ['id' => 1])
+            ->andReturn([
                 'id' => 1,
                 'user_id' => 1,
                 'name' => 'document.pdf'
-            ]]);
+            ])
+            ->once();
 
         // Mock - insérer le partage
         $this->database->shouldReceive('insert')
@@ -97,9 +100,10 @@ class ShareControllerTest extends BaseTestCase
         $this->database->shouldReceive('id')
             ->andReturn(100);
 
-        // Mock - retourner le partage créé
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        // Mock - retourner le partage créé via findById (appelle get)
+        $this->database->shouldReceive('get')
+            ->with('shares', \Mockery::any(), ['id' => 100])
+            ->andReturn([
                 'id' => 100,
                 'user_id' => 1,
                 'kind' => 'file',
@@ -108,11 +112,13 @@ class ShareControllerTest extends BaseTestCase
                 'token_sig' => 'sig123',
                 'is_revoked' => 0,
                 'remaining_uses' => 5
-            ]]);
+            ]);
 
         // Mock - mettre à jour la signature
+        $pdoMock = m::mock('PDOStatement');
+        $pdoMock->shouldReceive('rowCount')->andReturn(1);
         $this->database->shouldReceive('update')
-            ->andReturn(1);
+            ->andReturn($pdoMock);
 
         $result = $this->shareController->createShare($request, $response);
 
@@ -241,16 +247,18 @@ class ShareControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'test@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
                 'is_admin' => 0
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
         // Mock - retourner le partage
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        $this->database->shouldReceive('get')
+            ->with('shares', \Mockery::any(), ['id' => 100])
+            ->andReturn([
                 'id' => 100,
                 'user_id' => 1,
                 'kind' => 'file',
@@ -258,7 +266,8 @@ class ShareControllerTest extends BaseTestCase
                 'token' => 'abc123token',
                 'is_revoked' => 0,
                 'remaining_uses' => 5
-            ]]);
+            ])
+            ->once();
 
         $result = $this->shareController->showShare($request, $response, ['id' => '100']);
 
@@ -296,27 +305,32 @@ class ShareControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'test@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
                 'is_admin' => 0
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
         // Mock - retourner le partage
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        $this->database->shouldReceive('get')
+            ->with('shares', \Mockery::any(), ['id' => 100])
+            ->andReturn([
                 'id' => 100,
                 'user_id' => 1,
                 'kind' => 'file',
                 'target_id' => 1,
                 'token' => 'abc123token',
                 'is_revoked' => 0
-            ]]);
+            ])
+            ->once();
 
         // Mock - supprimer le partage
+        $pdoMock = m::mock('PDOStatement');
+        $pdoMock->shouldReceive('rowCount')->andReturn(1);
         $this->database->shouldReceive('delete')
-            ->andReturn(1);
+            ->andReturn($pdoMock);
 
         $result = $this->shareController->deleteShare($request, $response, ['id' => '100']);
 
@@ -355,8 +369,10 @@ class ShareControllerTest extends BaseTestCase
             ]]);
 
         // Mock - mettre à jour le partage (révoquer)
+        $pdoMock = m::mock('PDOStatement');
+        $pdoMock->shouldReceive('rowCount')->andReturn(1);
         $this->database->shouldReceive('update')
-            ->andReturn(1);
+            ->andReturn($pdoMock);
 
         $result = $this->shareController->revokeShare($request, $response, ['id' => '100']);
 

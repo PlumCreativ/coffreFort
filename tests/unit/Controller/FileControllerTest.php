@@ -272,15 +272,15 @@ class FileControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
-            ->with('users', \Mockery::any(), \Mockery::any())
+            ->with('users', \Mockery::any(), ['email' => 'test@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
                 'is_admin' => 0
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - allow insert (validation doesn't prevent it with empty name)
+        // Mock - allow insert in case validation is bypassed
         $this->database->shouldReceive('insert')
             ->andReturn(null);
         $this->database->shouldReceive('id')
@@ -288,10 +288,9 @@ class FileControllerTest extends BaseTestCase
 
         $result = $this->fileController->createFolder($request, $response);
 
-        // The controller accepts empty names without validation
-        $this->assertEquals(201, $result->getStatusCode());
+        $this->assertEquals(400, $result->getStatusCode());
         $data = $this->getResponseData($result);
-        $this->assertArrayHasKey('message', $data);
+        $this->assertArrayHasKey('error', $data);
     }
 
     /**
@@ -309,24 +308,34 @@ class FileControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'test@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
                 'is_admin' => 0
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - retourner le dossier
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        // Mock - trouver le dossier par ID
+        $this->database->shouldReceive('get')
+            ->with('folders', \Mockery::any(), ['id' => 10])
+            ->andReturn([
                 'id' => 10,
                 'user_id' => 1,
-                'name' => 'My Folder'
-            ]]);
+                'name' => 'My Folder',
+                'parent_id' => null
+            ])
+            ->once();
+
+        // Mock - count() pour vérifier qu'un dossier avec ce nom n'existe pas
+        $this->database->shouldReceive('count')
+            ->andReturn(0);
 
         // Mock - mettre à jour le dossier
+        $pdoMock = m::mock('PDOStatement');
+        $pdoMock->shouldReceive('rowCount')->andReturn(1);
         $this->database->shouldReceive('update')
-            ->andReturn(1);
+            ->andReturn($pdoMock);
 
         $result = $this->fileController->renameFolder($request, $response, ['id' => '10']);
 
@@ -349,32 +358,37 @@ class FileControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'test@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
                 'is_admin' => 0
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - retourner le dossier
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        // Mock - trouver le dossier par ID
+        $this->database->shouldReceive('get')
+            ->with('folders', \Mockery::any(), ['id' => 10])
+            ->andReturn([
                 'id' => 10,
                 'user_id' => 1,
                 'name' => 'My Folder'
-            ]]);
+            ])
+            ->once();
 
         // Mock - compter les fichiers dans le dossier
         $this->database->shouldReceive('count')
             ->andReturn(0);
 
         // Mock - supprimer le dossier
+        $pdoMock = m::mock('PDOStatement');
+        $pdoMock->shouldReceive('rowCount')->andReturn(1);
         $this->database->shouldReceive('delete')
-            ->andReturn(1);
+            ->andReturn($pdoMock);
 
         $result = $this->fileController->deleteFolder($request, $response, ['id' => '10']);
 
-        $this->assertEquals(200, $result->getStatusCode());
+        $this->assertEquals(204, $result->getStatusCode());
     }
 
     /**
@@ -391,35 +405,41 @@ class FileControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'test@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
                 'is_admin' => 0
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - retourner le fichier
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        // Mock - trouver le fichier par ID
+        $this->database->shouldReceive('get')
+            ->with('files', \Mockery::any(), ['id' => 1])
+            ->andReturn([
                 'id' => 1,
                 'user_id' => 1,
                 'name' => 'document.pdf'
-            ]]);
+            ])
+            ->once();
 
         // Mock - compter les versions
         $this->database->shouldReceive('count')
             ->andReturn(3);
 
+        // Mock - max version pour le fichier
+        $this->database->shouldReceive('max')
+            ->andReturn(3);
+
         // Mock - retourner les versions paginées
         $this->database->shouldReceive('select')
-            ->andReturn([
-                'current_version' => 3,
-                'rows' => [[
-                    'version' => 3,
-                    'checksum' => 'abc123',
-                    'created_at' => '2025-01-15'
-                ]]
-            ]);
+            ->andReturn([[
+                'id' => 1,
+                'version' => 3,
+                'checksum' => 'abc123',
+                'created_at' => '2025-01-15',
+                'size' => 1000
+            ]]);
 
         $result = $this->fileController->listVersions($request, $response, ['id' => '1']);
 
@@ -443,7 +463,6 @@ class FileControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'utilisateur par email
         $this->database->shouldReceive('get')
-            ->with('users', \Mockery::any(), \Mockery::any())
             ->andReturn([
                 'id' => 1,
                 'email' => 'test@example.com',
@@ -451,9 +470,14 @@ class FileControllerTest extends BaseTestCase
             ])
             ->zeroOrMoreTimes();
 
-        // Mock - retourner l'espace utilisé via sum()
+        // Mock - sum() pour totalSizeByUser
         $this->database->shouldReceive('sum')
-            ->andReturn(536870912);
+            ->andReturn(536870912)
+            ->zeroOrMoreTimes();
+
+        // Mock - retourner l'espace utilisé
+        $this->database->shouldReceive('select')
+            ->andReturn([['total' => 536870912]]);
 
         $result = $this->fileController->meQuota($request, $response);
 
