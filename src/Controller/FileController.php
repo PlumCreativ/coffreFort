@@ -251,7 +251,6 @@ class FileController {
             'versions_count'     => $versionCount,
             'latest_versions'    => $latestMapped,
         ];
-       
         return $this->json($response, $responseData, 200);
     }
 
@@ -859,9 +858,8 @@ class FileController {
             try {
                 $ciphertext = StorageWriter::readBinary($path);
             } catch(\RuntimeException $e){
-                 return $this->json($response, ['error' => 'Impossible de lire le fichier'], 500);
+                return $this->json($response, ['error' => 'Impossible de lire le fichier'], 500);
             }
-           
             //déchiffrer le fichier
             try {
                 $kek = FileCrypto::normalizeKek($_ENV['KEY_ENCRYPTION_KEY'] ?? getenv('KEY_ENCRYPTION_KEY') ?? '');
@@ -1072,9 +1070,9 @@ class FileController {
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 
-   
 
-  /************************************************************************************************************************/     
+
+/************************************************************************************************************************/     
 
 
     /**
@@ -1151,7 +1149,7 @@ class FileController {
      * DELETE /files/{file_id}/versions/{id} *********************************************************************************************************************** OK
      * Supprime une version d'un fichier
      */
-     public function deleteVersion(Request $request, Response $response, array $args): Response
+    public function deleteVersion(Request $request, Response $response, array $args): Response
     {
         
         //vérif authentification
@@ -1191,7 +1189,7 @@ class FileController {
         }
 
         if((int)$version['file_id'] !== $fileId){
-             return $this->json($response, ['error' => 'Cette version n\'appartient pas à ce fichier'], 403);
+            return $this->json($response, ['error' => 'Cette version n\'appartient pas à ce fichier'], 403);
         }
 
         //ne pas supprimer la version courante
@@ -1300,7 +1298,7 @@ class FileController {
     }
 
 
-   
+
 
 
     // GET /stats
@@ -1483,7 +1481,7 @@ class FileController {
         // Limiter après merge => $events il y a trop éléments 
         $events = array_slice($events, 0, $limit); //=> il renvoie de 0 à p.ex 20 éléménts..
 
-         return $this->json($response, [
+        return $this->json($response, [
             'user_id'   => $userId,
             'count'     => count($events),
             'events'    => $events
@@ -1548,6 +1546,12 @@ class FileController {
             return $this->json($response, ['error' => 'user_id and name are required'], 400);
         }
 
+        // Vérifier que le nom n'est pas vide
+        $name = trim((string)$body['name']);
+        if ($name === '') {
+            return $this->json($response, ['error' => 'name cannot be empty'], 400);
+        }
+
         // Si parent_id n'est pas fourni ou est 0 => à mettre NULL pour un dossier racine
         $parentId = null;
         if (isset($body['parent_id']) && $body['parent_id'] > 0) {
@@ -1557,7 +1561,7 @@ class FileController {
         $folderData = [
             'user_id'       => (int)$body['user_id'],
             'parent_id'     => $parentId,
-            'name'          => $body['name'],
+            'name'          => $name,
             'created_at'    => date('Y-m-d H:i:s')
         ];
         
@@ -1566,7 +1570,7 @@ class FileController {
         return $this->json($response, [
             'message'       => 'Dossier créé',
             'id'            => $folderId,
-            'name'          => $body['name'],
+            'name'          => $name,
             'parent_id'     => $parentId
         ], 201);
     }
@@ -1619,7 +1623,7 @@ class FileController {
 
         try{
             // Supprimer en base de données
-             $this->files->deleteFolder($folderId);
+            $this->files->deleteFolder($folderId);
 
             // suppression réussi => statut: 204
             return $this->json($response, ['message' => 'Folder supprimé avec succès'], 204);
