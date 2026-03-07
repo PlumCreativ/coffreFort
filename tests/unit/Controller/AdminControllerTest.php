@@ -112,11 +112,11 @@ class AdminControllerTest extends BaseTestCase
                 ]
             ]);
 
-        // Mock - retourner l'espace utilisé par chaque utilisateur
-        $this->database->shouldReceive('select')
-            ->andReturn([['total' => 268435456]])
-            ->andReturn([['total' => 134217728]])
-            ->andReturn([['total' => 0]]);
+        // Mock - sum() pour totalSizeByUser pour chaque utilisateur
+        $this->database->shouldReceive('sum')
+            ->andReturn(268435456)
+            ->andReturn(134217728)
+            ->andReturn(0);
 
         $result = $this->adminController->listUsersWithQuota($request, $response);
 
@@ -176,30 +176,35 @@ class AdminControllerTest extends BaseTestCase
             'quota' => 2147483648  // 2 GB
         ])->withHeader('Authorization', 'Bearer ' . $token);
 
-        // Mock pour vérifier le token - trouver l'utilisateur admin par email
+        // Mock pour vérifier le token - trouver l'admin par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'admin@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'admin@example.com',
                 'is_admin' => 1
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - retourner l'utilisateur cible
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        // Mock - trouver l'utilisateur cible par ID
+        $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['id' => 2])
+            ->andReturn([
                 'id' => 2,
                 'email' => 'user@example.com',
                 'quota_total' => 1073741824
-            ]]);
+            ])
+            ->once();
 
-        // Mock - retourner l'espace utilisé
-        $this->database->shouldReceive('select')
-            ->andReturn([['total' => 536870912]]);
+        // Mock - sum() pour totalSizeByUser
+        $this->database->shouldReceive('sum')
+            ->andReturn(536870912);
 
-        // Mock - mettre à jour le quota
+        // Mock - mettre à jour le quota - retourner un mock PDOStatement
+        $pdoMock = m::mock('PDOStatement');
+        $pdoMock->shouldReceive('rowCount')->andReturn(1);
         $this->database->shouldReceive('update')
-            ->andReturn(1);
+            ->andReturn($pdoMock);
 
         $result = $this->adminController->updateUserQuota($request, $response, ['id' => '2']);
         
@@ -223,26 +228,29 @@ class AdminControllerTest extends BaseTestCase
             'quota' => 268435456  // 256 MB (moins que l'espace utilisé)
         ])->withHeader('Authorization', 'Bearer ' . $token);
 
-        // Mock pour vérifier le token - trouver l'utilisateur admin par email
+        // Mock pour vérifier le token - trouver l'admin par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'admin@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'admin@example.com',
                 'is_admin' => 1
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - retourner l'utilisateur cible
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        // Mock - trouver l'utilisateur cible par ID
+        $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['id' => 2])
+            ->andReturn([
                 'id' => 2,
                 'email' => 'user@example.com',
                 'quota_total' => 1073741824
-            ]]);
+            ])
+            ->once();
 
-        // Mock - retourner l'espace utilisé (536 MB)
-        $this->database->shouldReceive('select')
-            ->andReturn([['total' => 536870912]]);
+        // Mock - sum() pour totalSizeByUser (plus que le nouveau quota)
+        $this->database->shouldReceive('sum')
+            ->andReturn(536870912);
 
         $result = $this->adminController->updateUserQuota($request, $response, ['id' => '2']);
 
@@ -320,20 +328,23 @@ class AdminControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'admin par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'admin@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'admin@example.com',
                 'is_admin' => 1
             ])
-            ->zeroOrMoreTimes();
+            ->once();
 
-        // Mock - retourner l'utilisateur cible
-        $this->database->shouldReceive('select')
-            ->andReturn([[
+        // Mock - trouver l'utilisateur à supprimer par ID
+        $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['id' => 2])
+            ->andReturn([
                 'id' => 2,
                 'email' => 'user@example.com',
                 'is_admin' => 0
-            ]]);
+            ])
+            ->once();
 
         // Mock - lister les fichiers de l'utilisateur
         $this->database->shouldReceive('select')
@@ -432,15 +443,19 @@ class AdminControllerTest extends BaseTestCase
 
         // Mock pour vérifier le token - trouver l'admin par email
         $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['email' => 'admin@example.com'])
             ->andReturn([
                 'id' => 1,
                 'email' => 'admin@example.com',
                 'is_admin' => 1
-            ]);
+            ])
+            ->once();
 
-        // Mock - aucun utilisateur trouvé
-        $this->database->shouldReceive('select')
-            ->andReturn([]);
+        // Mock - aucun utilisateur trouvé avec ID 999
+        $this->database->shouldReceive('get')
+            ->with('users', \Mockery::any(), ['id' => 999])
+            ->andReturn(null)
+            ->once();
 
         $result = $this->adminController->deleteUser($request, $response, ['id' => '999']);
 

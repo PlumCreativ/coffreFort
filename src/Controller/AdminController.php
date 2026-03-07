@@ -121,7 +121,7 @@ class AdminController
 
             if($newQuota < $usedSpace){
                 return $this->json($response, [
-                    'error'             => "Le nouveau quota ne peut pas être infèrieure à l\'espace utilisé.",
+                    'error'             => "Le nouveau quota ne peut pas être inférieure à l\'espace utilisé.",
                     'quota_requested'   => $newQuota,
                     'space_used'        => $usedSpace
                 ], 400);
@@ -143,7 +143,6 @@ class AdminController
         }
     }
 
-  
     /**
      * DELETE /admin/users/{id} - Supprime un utilisateur (ADMIN uniquement) ****************************************************************************OK
      * Respecte le RGPD en supprimant toutes les données de l'utilisateur
@@ -256,7 +255,7 @@ class AdminController
                 'error' => 'Erreur lors de la suppression de l\'utilisateur',
                 'details' => $e->getMessage()
             ], 500);
-         }
+        }
 
         // suppression réussi => statut: 204 No Content
         return $response->withStatus(204);
