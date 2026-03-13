@@ -1,6 +1,5 @@
 name: PHPUnit Tests
 
-
 on:
   push:
     branches:
