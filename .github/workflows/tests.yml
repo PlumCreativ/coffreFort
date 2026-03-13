@@ -25,7 +25,7 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD || 'root' }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
           MYSQL_DATABASE: coffreFort
         options: >-
           --health-cmd="mysqladmin ping"
@@ -63,7 +63,7 @@ jobs:
       - name: Wait for MySQL to be ready
         run: |
           for i in {1..30}; do
-            if mysqladmin ping -h "127.0.0.1" -u "root" -p"${{ secrets.DB_ROOT_PASSWORD || 'root' }}" 2>/dev/null; then
+            if mysqladmin ping -h "127.0.0.1" -u "root" -p"${{ secrets.DB_ROOT_PASSWORD }}" 2>/dev/null; then
               echo "MySQL is ready!"
               exit 0
             fi
@@ -74,7 +74,7 @@ jobs:
 
       - name: Setup test database
         run: |
-          mysql -h 127.0.0.1 -u root -p"${{ secrets.DB_ROOT_PASSWORD || 'root' }}" coffreFort < sql/init.sql
+          mysql -h 127.0.0.1 -u root -p"${{ secrets.DB_ROOT_PASSWORD }}" coffreFort < sql/init.sql
         continue-on-error: true
 
       - name: Run PHPUnit tests
@@ -82,9 +82,9 @@ jobs:
         env:
           DB_HOST: 127.0.0.1
           DB_USER: root
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'root' }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: coffreFort
-          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD || 'root' }}
+          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'qkdfjlqgjlqgjldk2345_fklqjglq6678' }}
           KEY_ENCRYPTION_KEY: ${{ secrets.KEY_ENCRYPTION_KEY || 'hjueksleo45jfb_uoe234ifk2apqm_jr' }}
           SHARE_SECRET: ${{ secrets.SHARE_SECRET || 'qfkmqljgmqdjfgqdgkmjqdgjqmgjdqfmjgqdlokrtdhujytrscvnklmpouygderf' }}
