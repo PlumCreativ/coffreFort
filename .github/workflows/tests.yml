@@ -1,6 +1,5 @@
 name: PHPUnit Tests
 
-
 on:
   push:
     branches:
@@ -26,8 +25,10 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: coffrefort_test
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          MYSQL_DATABASE: coffreFort
+          MYSQL_USER: root
+          MYSQL_PASSWORD: ${{ secrets.DB_PASSWORD }}
         options: >-
           --health-cmd="mysqladmin ping"
           --health-interval=10s
@@ -64,7 +65,7 @@ jobs:
       - name: Wait for MySQL to be ready
         run: |
           for i in {1..30}; do
-            if mysqladmin ping -h "127.0.0.1" -u "root" -p"root" 2>/dev/null; then
+            if mysqladmin ping -h "127.0.0.1" -u "root" -p"${{ secrets.DB_ROOT_PASSWORD }}" 2>/dev/null; then
               echo "MySQL is ready!"
               exit 0
             fi
@@ -75,7 +76,7 @@ jobs:
 
       - name: Setup test database
         run: |
-          mysql -h 127.0.0.1 -u root -p"5678_Juklau+147!_29132" coffreFort < sql/init.sql
+          mysql -h 127.0.0.1 -u root -p"${{ secrets.DB_ROOT_PASSWORD }}" coffreFort < sql/init.sql
         continue-on-error: true
 
       - name: Run PHPUnit tests
@@ -83,9 +84,12 @@ jobs:
         env:
           DB_HOST: 127.0.0.1
           DB_USER: root
-          DB_PASSWORD: 5678_Juklau+147!_29132
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: coffreFort
-          JWT_SECRET: qkdfjlqgjlqgjldk2345_fklqjglq6678
+          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          KEY_ENCRYPTION_KEY: ${{ secrets.KEY_ENCRYPTION_KEY }}
+          SHARE_SECRET: ${{ secrets.SHARE_SECRET }}
 
       - name: Generate test report
         if: always()
@@ -95,7 +99,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-reports-php-${{ matrix.php-version }}
           path: |
