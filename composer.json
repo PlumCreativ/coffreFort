@@ -6,14 +6,6 @@
             "App\\": "src"
         }
     },
-<<<<<<< HEAD
-=======
-    "authors": [
-        {
-            "name": "plum"
-        }
-    ],
->>>>>>> e7eef21 (mise en place de Composer et Docker)
     "require": {
     "slim/slim": "^4.12",
     "slim/psr7": "^1.8",
