@@ -9,9 +9,6 @@ use Slim\Psr7\UploadedFile;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-// il faut charger les variables d'environnement depuis .env
-// $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
-// $dotenv->load();
 
 $database = new Medoo([
     // 'type'      => 'mysql',
