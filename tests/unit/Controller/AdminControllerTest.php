@@ -162,6 +162,7 @@ class AdminControllerTest extends BaseTestCase
         $this->assertStringContainsString('administrateur requis', $data['error']);
         $this->assertEquals(403, $result->getStatusCode());
     }
+    // commentaire test
 
     /**
      * Test : Modifier le quota d'un utilisateur (admin)

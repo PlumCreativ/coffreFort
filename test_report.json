@@ -1,10 +1,10 @@
 {
     "status": "success",
     "summary": {
-        "total_tests": 49,
+        "total_tests": 0,
         "errors": 0,
         "failures": 0,
-        "passes": 49
+        "passes": 0
     },
     "errors": [],
     "failures": []
