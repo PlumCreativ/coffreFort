@@ -37,14 +37,14 @@ class ShareRepository{
     //retourne tous les caractéristiques d'un partage
     public function findById(int $id): array
     {
-        $row = $this->db->get('shares', ['join' => '*'], ['id' => $id]);
+        $row = $this->db->get('shares', '*', ['id' => $id]);
         return $row ?: [];
     }
 
     //trouve le partage par le token (donné)
     public function findByToken(string $token): array
     {
-         $row = $this->db->get('shares', ['join' => '*'], ['token' => $token]);
+         $row = $this->db->get('shares', '*', ['token' => $token]);
         return $row ?: [];
     }
 

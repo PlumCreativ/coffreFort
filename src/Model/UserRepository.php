@@ -21,13 +21,13 @@ class UserRepository
     //retourne tous les caractéristiques d'un user donné
     public function find(int $id): ?array
     {
-        return $this->db->get('users', ['join' => '*'], ['id' => $id]) ?: null;
+        return $this->db->get('users', '*', ['id' => $id]) ?: null;
     }
 
     //retourne tous les caractéristique d'un user qui a l'email donné en paramètre
     public function findByEmail(string $email): ?array
     {
-        return $this->db->get('users', ['join' => '*'], ['email' => $email]) ?: null;
+        return $this->db->get('users', '*', ['email' => $email]) ?: null;
     }
 
     //crée un user
