@@ -31,6 +31,8 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      KEY_ENCRYPTION_KEY: ${KEY_ENCRYPTION_KEY}
       # DB_USER: root
       # DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     depends_on:

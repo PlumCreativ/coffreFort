@@ -20,10 +20,9 @@ class UserController
     public function __construct(Medoo $db)
     {
         $this->users = new UserRepository($db);
-        //$this->jwtSecret = getenv('JWT_SECRET') ?: 'default-secret'; //=> à mettre dans env!!!
-
+        
         // Init du secret JWT (env ou param)
-        $this->jwtSecret = $jwtSecret ?? ($_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '');
+        $this->jwtSecret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '';
         $this->auth = new AuthService($db, $this->jwtSecret);
 
         if ($this->jwtSecret === '') {
