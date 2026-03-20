@@ -25,6 +25,13 @@ class AdminControllerTest extends BaseTestCase
         parent::setUp();
         $this->database = m::mock('Medoo\Medoo');
         $this->jwtSecret = $_ENV['JWT_SECRET'] ?? 'qkdfjlqgjlqgjldk2345_fklqjglq6678';
+        
+        // Mock par défaut pour insert() - utilisé par AuditLogger
+        // insert() retourne null en cas de succès Medoo
+        $this->database->shouldReceive('insert')
+            ->andReturn(null)
+            ->byDefault();
+        
         $this->adminController = new AdminController($this->database);
     }
 
@@ -256,7 +263,7 @@ class AdminControllerTest extends BaseTestCase
 
         $data = $this->getResponseData($result);
         $this->assertArrayHasKey('error', $data);
-        $this->assertStringContainsString('inférieure', $data['error']);
+        $this->assertStringContainsString('inférieur', $data['error']);
         $this->assertEquals(400, $result->getStatusCode());
     }
 

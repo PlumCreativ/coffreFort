@@ -1,15 +1,21 @@
 <?php
+
+
 namespace App\Model;
 
 use Medoo\Medoo;
+use DateTime;
+use DateTimeZone;
 
 class DownloadLogRepository{
 
     private Medoo $db;
+    private DateTime $now;
 
     public function __construct(Medoo $db){
 
         $this->db = $db;
+        $this->now = new DateTime('now', new DateTimeZone('UTC'));
     }
 
     /***
@@ -21,11 +27,14 @@ class DownloadLogRepository{
      * @param bool $success
      * @param string|null $message
     */
+
+    // Utiliser DateTime avec timezone explicite
+    
     public function log(?int $shareId, ?int $versionId, string $ip, string $userAgent, bool $success, ?string $message = null): void{
         $this->db->insert('downloads_log', [
             'share_id'          => $shareId,            //peut être null => download direct
             'version_id'        => $versionId, 
-            'downloaded_at'     => date('Y-m-d H:i:s'), 
+            'downloaded_at'     => $this->now->format('Y-m-d H:i:s'),
             'ip'                => $ip, 
             'user_agent'        => $userAgent, 
             'success'           => $success ? 1 :0, 
