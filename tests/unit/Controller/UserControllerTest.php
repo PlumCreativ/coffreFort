@@ -27,6 +27,12 @@ class UserControllerTest extends BaseTestCase
         parent::setUp();
         $this->database = m::mock('Medoo\Medoo');
         $this->jwtSecret = $_ENV['JWT_SECRET'] ?? 'qkdfjlqgjlqgjldk2345_fklqjglq6678';
+
+        // Mock par défaut pour insert() - utilisé par AuditLogger
+        $this->database->shouldReceive('insert')
+            ->andReturn(null)
+            ->byDefault();
+
         $this->userController = new UserController($this->database);
     }
 
