@@ -52,11 +52,6 @@ class AdminController
         }
 
         try {
-            // Log l'action de lecture sensible
-            $this->auditLogger->logRead('users', (int)$user['id'], 'LIST_ALL_USERS_WITH_QUOTAS', [
-                'action' => 'Consultation de tous les utilisateurs et quotas',
-                'admin_id' => (int)$user['id']
-            ]);
 
             $allUsers = $this->users->listUsers();
 
@@ -140,14 +135,13 @@ class AdminController
             // Effectuer la mise à jour
             $this->users->updateQuota($targetUserId, $newQuota);
 
-            // Log l'opération UPDATE
-            $this->auditLogger->log(
-                'users',
-                'UPDATE',
+            // Log l'opération de mise à jour du quota
+            $this->auditLogger->insert(
                 (int)$user['id'],
+                'QUOTA_UPDATE',
+                'users',
                 $targetUserId,
-                ['quota_total' => $oldQuota],
-                ['quota_total' => $newQuota]
+                ['old_quota' => $oldQuota, 'new_quota' => $newQuota]
             );
 
             return $this->json($response, [
@@ -249,19 +243,17 @@ class AdminController
             // Supprimer les logs de téléchargement
             $this->shares->deleteDownloadLogsByUser($targetUserId);
 
-            // Log l'opération DELETE avant suppression
-            $this->auditLogger->log(
-                'users',
-                'DELETE',
+            // Log l'opération de suppression
+            $this->auditLogger->insert(
                 (int)$user['id'],
+                'USER_DELETE',
+                'users',
                 $targetUserId,
                 [
-                    'id' => $targetUser['id'],
-                    'email' => $targetUser['email'],
-                    'is_admin' => $targetUser['is_admin'],
-                    'quota_total' => $targetUser['quota_total'] ?? 0
-                ],
-                null
+                    'email'       => $targetUser['email'],
+                    'is_admin'    => $targetUser['is_admin'],
+                    'quota_total' => $targetUser['quota_total'] ?? 0,
+                ]
             );
 
             // Supprimer user en BDD

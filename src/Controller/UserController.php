@@ -82,9 +82,9 @@ class UserController
 
         $id = $this->users->create($userData);
 
-        $this->audit->log('users', 'INSERT', (int)$id, (int)$id, null, [
+        $this->audit->insert((int)$id, 'USER_REGISTER', 'users', (int)$id, [
             'email'    => $body['email'],
-            'is_admin' => $isAdmin
+            'is_admin' => $isAdmin,
         ]);
 
         $response->getBody()->write(json_encode([
@@ -125,8 +125,8 @@ class UserController
         }
 
         // Log de la connexion réussie
-        $this->audit->logRead('users', (int)$user['id'], 'USER_LOGIN', [
-            'email' => $user['email']
+        $this->audit->insert((int)$user['id'], 'USER_LOGIN', 'users', (int)$user['id'], [
+            'email' => $user['email'],
         ]);
 
         // Génération du JWT
@@ -164,8 +164,8 @@ class UserController
             return $this->json($response, ['error' => $e->getMessage()], 401);
         }
 
-        $this->audit->logRead('users', (int)$user['id'], 'OTHER', [
-            'action' => 'list_all_users'
+        $this->audit->insert((int)$user['id'], 'OTHER', 'users', null, [
+            'action' => 'list_all_users',
         ]);
 
         $data = $this->users->listUsers();
@@ -201,9 +201,9 @@ class UserController
             return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
         }
 
-        $this->audit->logRead('users', (int)$authUser['id'], 'OTHER', [
+        $this->audit->insert((int)$authUser['id'], 'OTHER', 'users', $id, [
             'action'    => 'show_user',
-            'target_id' => $id
+            'target_id' => $id,
         ]);
 
         return $this->json($response, $targetUser, 200);
