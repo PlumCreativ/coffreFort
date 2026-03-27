@@ -210,6 +210,23 @@ class UserController
     }
 
 
+    // POST /logout - Déconnexion de l'utilisateur authentifié
+    public function logout(Request $request, Response $response): Response
+    {
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        $this->audit->insert((int)$user['id'], 'USER_LOGOUT', 'users', (int)$user['id'], [
+            'email' => $user['email'],
+        ]);
+
+        return $this->json($response, ['message' => 'Déconnexion réussie'], 200);
+    }
+
+
     // ROUTE DASHBOARD (protégée)
     public function dashboard(Request $request, Response $response)
     {

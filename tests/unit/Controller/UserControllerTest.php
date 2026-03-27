@@ -420,6 +420,50 @@ class UserControllerTest extends BaseTestCase
     }
 
     /**
+     * Test : Déconnexion réussie avec JWT valide
+     * POST /logout
+     */
+    public function testLogoutSuccess(): void
+    {
+        $token = $this->createUserJwt(2);
+
+        $response = $this->createResponse();
+        $request = $this->createPostRequest('/logout', [])
+            ->withHeader('Authorization', 'Bearer ' . $token);
+
+        // Mock - AuthService recherche l'utilisateur par email depuis le JWT
+        $this->database->shouldReceive('get')
+            ->andReturn([
+                'id'       => 2,
+                'email'    => 'user@example.com',
+                'is_admin' => 0,
+            ])
+            ->zeroOrMoreTimes();
+
+        $result = $this->userController->logout($request, $response);
+
+        $this->assertEquals(200, $result->getStatusCode());
+        $data = $this->getResponseData($result);
+        $this->assertArrayHasKey('message', $data);
+    }
+
+    /**
+     * Test : Déconnexion sans JWT → 401
+     * POST /logout
+     */
+    public function testLogoutNoToken(): void
+    {
+        $response = $this->createResponse();
+        $request = $this->createPostRequest('/logout', []);
+
+        $result = $this->userController->logout($request, $response);
+
+        $this->assertEquals(401, $result->getStatusCode());
+        $data = $this->getResponseData($result);
+        $this->assertArrayHasKey('error', $data);
+    }
+
+    /**
      * Test : Dashboard avec JWT valide
      * GET /dashboard
      */
