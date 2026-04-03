@@ -25,6 +25,10 @@ $database = new Medoo([
     'database'  => getenv('DB_NAME') ?: 'coffreFort',
     'username'  => getenv('DB_USER') ?: 'root',
     'password'  => getenv('DB_PASSWORD') ?: '',
+    'option'    => [
+        \PDO::ATTR_CASE => \PDO::CASE_LOWER,
+        \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+    ],
 ]);
 
 $app = AppFactory::create();
@@ -41,10 +45,16 @@ if ($basePath !== '') {
     $app->setBasePath($basePath);
 }
 
+// Récupérer le JWT_SECRET une seule fois
+$jwtSecret = getenv('JWT_SECRET');
+if (!$jwtSecret) {
+    throw new \Exception("JWT_SECRET environment variable is not set");
+}
+
 $adminController = new AdminController($database);
-$fileController = new FileController($database);
+$fileController = new FileController($database, $jwtSecret);
 $userController = new UserController($database);
-$shareController = new ShareController($database);
+$shareController = new ShareController($database, $jwtSecret);
 
 //JO => signifie requête dans Postman OK
 
@@ -118,7 +128,7 @@ $app->get('/', function ($request, $response) {
 
             'GET /files',
             'GET /files?folder={id}',
-           
+
             'GET /files/{id}',
             'GET /files/{id}/download',
 
@@ -161,7 +171,6 @@ $app->get('/', function ($request, $response) {
 
         ]
 
-                  
     ], JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json');
 });

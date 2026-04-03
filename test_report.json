@@ -1,0 +1,11 @@
+{
+    "status": "success",
+    "summary": {
+        "total_tests": 49,
+        "errors": 0,
+        "failures": 0,
+        "passes": 49
+    },
+    "errors": [],
+    "failures": []
+}

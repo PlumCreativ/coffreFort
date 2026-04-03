@@ -31,6 +31,8 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      KEY_ENCRYPTION_KEY: ${KEY_ENCRYPTION_KEY}
       # DB_USER: root
       # DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     depends_on:
@@ -63,7 +65,7 @@ services:
       # Optionnel: script SQL auto au 1er démarrage (alternative à setup_db.php)
       # Monter le script d'initialisation
       # => il ne faut pas pour le backup et restore => il faut le commenter!!
-      #- ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro #ro = read only
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro #ro = read only
 
       #il faut le commenter pour le backup et restore!!
       - ./sql:/docker-entrypoint-initdb.d:ro  #=>pour lire aussi init.triggers.sql 

@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Model\UserRepository;
 use App\Security\AuthService;
+use App\Helper\AuditLogger;
 use Medoo\Medoo;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -16,14 +17,15 @@ class UserController
     private UserRepository $users;
     private string $jwtSecret;
     private AuthService $auth;
+    private AuditLogger $audit;
 
     public function __construct(Medoo $db)
     {
         $this->users = new UserRepository($db);
-        //$this->jwtSecret = getenv('JWT_SECRET') ?: 'default-secret'; //=> à mettre dans env!!!
+        $this->audit = new AuditLogger($db);
 
         // Init du secret JWT (env ou param)
-        $this->jwtSecret = $jwtSecret ?? ($_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '');
+        $this->jwtSecret = $_ENV['JWT_SECRET'] ?? getenv('JWT_SECRET') ?? '';
         $this->auth = new AuthService($db, $this->jwtSecret);
 
         if ($this->jwtSecret === '') {
@@ -117,7 +119,10 @@ class UserController
             return $this->json($response, ['error' => 'Mot de passe incorrect'], 401);
         }
 
-        //call pour le procédure stocké de BDD à mettre ici pour faire des logs pour toutes les connexions???
+        // Log de la connexion réussie
+        $this->audit->insert((int)$user['id'], 'USER_LOGIN', 'users', (int)$user['id'], [
+            'email' => $user['email'],
+        ]);
 
         // Génération du JWT
         $payload = [
@@ -154,6 +159,10 @@ class UserController
             return $this->json($response, ['error' => $e->getMessage()], 401);
         }
 
+        $this->audit->insert((int)$user['id'], 'OTHER', 'users', null, [
+            'action' => 'list_all_users',
+        ]);
+
         $data = $this->users->listUsers();
 
         return $this->json($response, $data, 200);
@@ -187,7 +196,29 @@ class UserController
             return $this->json($response, ['error' => 'Utilisateur introuvable'], 404);
         }
 
+        $this->audit->insert((int)$authUser['id'], 'OTHER', 'users', $id, [
+            'action'    => 'show_user',
+            'target_id' => $id,
+        ]);
+
         return $this->json($response, $targetUser, 200);
+    }
+
+
+    // POST /logout - Déconnexion de l'utilisateur authentifié
+    public function logout(Request $request, Response $response): Response
+    {
+        try {
+            $user = $this->auth->getAuthenticatedUserFromToken($request);
+        } catch (\Exception $e) {
+            return $this->json($response, ['error' => $e->getMessage()], 401);
+        }
+
+        $this->audit->insert((int)$user['id'], 'USER_LOGOUT', 'users', (int)$user['id'], [
+            'email' => $user['email'],
+        ]);
+
+        return $this->json($response, ['message' => 'Déconnexion réussie'], 200);
     }
 
 

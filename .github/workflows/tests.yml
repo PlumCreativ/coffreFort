@@ -1,0 +1,125 @@
+name: PHPUnit Tests
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+      - feature/**
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['8.2', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          MYSQL_DATABASE: coffreFort
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: mbstring, pdo, pdo_mysql, json, curl
+          tools: composer:v2
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Wait for MySQL to be ready
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping -h "127.0.0.1" -u "root" -p"${{ secrets.DB_ROOT_PASSWORD }}" 2>/dev/null; then
+              echo "MySQL is ready!"
+              exit 0
+            fi
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 1
+          done
+          exit 1
+
+      - name: Setup test database
+        run: |
+          mysql -h 127.0.0.1 -u root -p"${{ secrets.DB_ROOT_PASSWORD }}" coffreFort < sql/init.sql
+        continue-on-error: true
+
+      - name: Run PHPUnit tests
+        run: php vendor/bin/phpunit tests/unit/ --configuration=phpunit.xml
+        env:
+          DB_HOST: 127.0.0.1
+          DB_USER: root
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: coffreFort
+          DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'qkdfjlqgjlqgjldk2345_fklqjglq6678' }}
+          KEY_ENCRYPTION_KEY: ${{ secrets.KEY_ENCRYPTION_KEY || 'hjueksleo45jfb_uoe234ifk2apqm_jr' }}
+          SHARE_SECRET: ${{ secrets.SHARE_SECRET || 'qfkmqljgmqdjfgqdgkmjqdgjqmgjdqfmjgqdlokrtdhujytrscvnklmpouygderf' }}
+      - name: Generate test report
+        if: always()
+        run: |
+          php vendor/bin/phpunit tests/unit/ --configuration=phpunit.xml --testdox > test-report.txt 2>&1 || true
+          cat test-report.txt
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-php-${{ matrix.php-version }}
+          path: |
+            test-report.txt
+            test_report.json
+
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const testReport = fs.existsSync('test-report.txt') ? fs.readFileSync('test-report.txt', 'utf8') : 'No report generated';
+            
+            const comment = `## PHPUnit Test Results (PHP ${{ matrix.php-version }})
+            
+            \`\`\`
+            ${testReport}
+            \`\`\``;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

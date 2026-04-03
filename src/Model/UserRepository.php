@@ -43,7 +43,7 @@ class UserRepository
         $this->db->delete('users', ['id' => $id]);
     }
 
-    //compte le nbre de users
+    //compte le nombre de users
     public function countUsers(): int
     {
         return (int)$this->db->count('users');

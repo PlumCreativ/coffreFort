@@ -1,0 +1,12 @@
+PHPUnit 11.5.55 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.3
+Configuration: /Users/admin-27904/Documents/coffreFort/phpunit.xml
+Random Seed:   1773409759
+
+....WW..W........................................                 49 / 49 (100%)
+
+Time: 00:01.153, Memory: 12.00 MB
+
+OK, but there were issues!
+Tests: 49, Assertions: 104, Warnings: 10, PHPUnit Deprecations: 1.

@@ -251,7 +251,6 @@ class FileController {
             'versions_count'     => $versionCount,
             'latest_versions'    => $latestMapped,
         ];
-       
         return $this->json($response, $responseData, 200);
     }
 
@@ -1548,6 +1547,12 @@ class FileController {
             return $this->json($response, ['error' => 'user_id and name are required'], 400);
         }
 
+        // Vérifier que le nom n'est pas vide
+        $name = trim((string)$body['name']);
+        if ($name === '') {
+            return $this->json($response, ['error' => 'name cannot be empty'], 400);
+        }
+
         // Si parent_id n'est pas fourni ou est 0 => à mettre NULL pour un dossier racine
         $parentId = null;
         if (isset($body['parent_id']) && $body['parent_id'] > 0) {
@@ -1557,7 +1562,7 @@ class FileController {
         $folderData = [
             'user_id'       => (int)$body['user_id'],
             'parent_id'     => $parentId,
-            'name'          => $body['name'],
+            'name'          => $name,
             'created_at'    => date('Y-m-d H:i:s')
         ];
         
@@ -1566,7 +1571,7 @@ class FileController {
         return $this->json($response, [
             'message'       => 'Dossier créé',
             'id'            => $folderId,
-            'name'          => $body['name'],
+            'name'          => $name,
             'parent_id'     => $parentId
         ], 201);
     }
@@ -1619,7 +1624,7 @@ class FileController {
 
         try{
             // Supprimer en base de données
-             $this->files->deleteFolder($folderId);
+            $this->files->deleteFolder($folderId);
 
             // suppression réussi => statut: 204
             return $this->json($response, ['message' => 'Folder supprimé avec succès'], 204);
