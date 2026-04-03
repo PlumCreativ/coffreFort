@@ -141,7 +141,12 @@ class AdminController
                 'QUOTA_UPDATE',
                 'users',
                 $targetUserId,
-                ['old_quota' => $oldQuota, 'new_quota' => $newQuota]
+                [
+                    'admin_email'  => $user['email'],
+                    'target_email' => $targetUser['email'],
+                    'old_quota'    => $oldQuota,
+                    'new_quota'    => $newQuota,
+                ]
             );
 
             return $this->json($response, [
@@ -242,20 +247,7 @@ class AdminController
 
             // Supprimer les logs de téléchargement
             $this->shares->deleteDownloadLogsByUser($targetUserId);
-
-            // Log l'opération de suppression
-            $this->auditLogger->insert(
-                (int)$user['id'],
-                'USER_DELETE',
-                'users',
-                $targetUserId,
-                [
-                    'email'       => $targetUser['email'],
-                    'is_admin'    => $targetUser['is_admin'],
-                    'quota_total' => $targetUser['quota_total'] ?? 0,
-                ]
-            );
-
+            
             // Supprimer user en BDD
             $deleted = $this->users->delete($targetUserId);
 
@@ -276,6 +268,20 @@ class AdminController
                 $summary['failed_files'] = $failedFiles;
             }
 
+            // Log l'opération de suppression
+            $this->auditLogger->insert(
+                (int)$user['id'],
+                'USER_DELETE',
+                'users',
+                $targetUserId,
+                [
+                    'admin_email'  => $user['email'],
+                    'target_email' => $targetUser['email'],
+                    'is_admin'     => $targetUser['is_admin'],
+                    'quota_total'  => $targetUser['quota_total'] ?? 0,
+                ]
+            );
+            
             return $this->json($response, $summary, 200);
 
         } catch (\Exception $e) {

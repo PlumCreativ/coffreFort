@@ -82,11 +82,6 @@ class UserController
 
         $id = $this->users->create($userData);
 
-        $this->audit->insert((int)$id, 'USER_REGISTER', 'users', (int)$id, [
-            'email'    => $body['email'],
-            'is_admin' => $isAdmin,
-        ]);
-
         $response->getBody()->write(json_encode([
             'message'   => 'Utilisateur créé',
             'id'        => $id,

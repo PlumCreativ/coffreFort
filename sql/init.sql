@@ -81,16 +81,16 @@ CREATE TABLE `shares` (
 
 DROP TABLE IF EXISTS `downloads_log`;
 CREATE TABLE `downloads_log` (
-  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `share_id` BIGINT UNSIGNED NULL,
-  `version_id` BIGINT UNSIGNED NULL,
-  `downloaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `ip` VARCHAR(45) NOT NULL,
-  `user_agent` VARCHAR(255) NOT NULL,
-  `success` TINYINT(1) NOT NULL,
-  `message` VARCHAR(255) NULL,
-  CONSTRAINT `fk_downloads_share` FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
-  CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
+    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `share_id` BIGINT UNSIGNED NULL,
+    `version_id` BIGINT UNSIGNED NULL,
+    `downloaded_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `ip` VARCHAR(45) NOT NULL,
+    `user_agent` VARCHAR(255) NOT NULL,
+    `success` TINYINT(1) NOT NULL,
+    `message` VARCHAR(255) NULL,
+    CONSTRAINT `fk_downloads_share` FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
+    CONSTRAINT `fk_downloads_version` FOREIGN KEY (version_id) REFERENCES file_versions(id) ON DELETE SET NULL
 );
 
 
@@ -116,14 +116,14 @@ CREATE TABLE `audit_logs`(
     `user_agent` VARCHAR(255) NULL,                                 
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-     INDEX `idx_user_id` (user_id),
-     INDEX `idx_action` (action),
-     INDEX `idx_created_at` (created_at),
-     INDEX `idx_table_record` (table_name, record_id)
- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    INDEX `idx_user_id` (user_id),
+    INDEX `idx_action` (action),
+    INDEX `idx_created_at` (created_at),
+    INDEX `idx_table_record` (table_name, record_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
- -- Index utiles =????
+-- Index utiles =????
 CREATE INDEX idx_folders_user ON folders(user_id);
 CREATE INDEX idx_files_user_folder ON files(user_id, folder_id);
 CREATE INDEX idx_shares_token ON shares(token);

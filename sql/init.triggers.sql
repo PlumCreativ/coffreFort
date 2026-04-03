@@ -22,7 +22,7 @@
 -- ============================================================================
 -- Paramètres:
 --   p_user_id: ID de l'utilisateur qui a déclenché l'action (peut être NULL)
---   p_action: Type d'action ('FILE_UPLOAD', 'USER_DELETE', etc.)
+--   p_action: Type d'action ('FILE_UPLOAD', etc.)
 --   p_table_name: Nom de la table affectée
 --   p_record_id: ID du record modifié
 --   p_details: Détails JSON de l'action
@@ -433,84 +433,149 @@ END$$
 
 DELIMITER ;
 
--- ============================================================================
--- TRIGGERS POUR LES UTILISATEURS
--- ============================================================================ 
-
-
-DELIMITER $$
-
-DROP TRIGGER IF EXISTS `trg_users_before_delete`$$
-CREATE TRIGGER `trg_users_before_delete`
-BEFORE DELETE ON `users`
-FOR EACH ROW
-BEGIN
-    DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
-    BEGIN
-        -- Erreur silencieuse
-    END;
-    
-    -- BEFORE DELETE: capture les données AVANT suppression
-    -- Critère RGPD: enregistrer la suppression de compte
-    INSERT INTO audit_logs (user_id, action, table_name, record_id, details)
-    VALUES (
-        OLD.id,
-        'USER_DELETE',
-        'users',
-        OLD.id,
-        JSON_OBJECT(
-            'email', OLD.email,
-            'quota_total', OLD.quota_total,
-            'quota_used', OLD.quota_used,
-            'was_admin', OLD.is_admin,
-            'created_at', OLD.created_at,
-            'reason', "RGPD - Droit à l'effacement"
-        )
-    );
-END$$
-
-DELIMITER ;
 
 -- ============================================================================
--- DÉCLENCHEURS ADDITIONNELS RECOMMANDÉS
--- ============================================================================
--- 
--- Trigger pour les inscriptions d'utilisateurs:
+-- VUES POUR FACILITER AFFICHAGE L'ACTIVITÉ DE ADMIN
 -- ============================================================================
 
-DELIMITER $$
+-- Vue générale : toutes les actions d'administration sur les utilisateurs
+-- Couvre : USER_DELETE, QUOTA_UPDATE
+-- Colonnes :
+--   performed_by_id/email → admin qui a exécuté l'action (user_id + JOIN users + fallback JSON $.admin_email)
+--   target_user_id/email  → user ciblé (record_id + JSON $.target_email)
+--   old_quota / new_quota → valeurs avant/après pour QUOTA_UPDATE
+--   ip_address / user_agent → contexte réseau de l'action
+DROP VIEW IF EXISTS `admin_user_activity_view`;
+CREATE VIEW `admin_user_activity_view` AS
+SELECT
+    al.id                                                       AS log_id,
+    al.created_at,
 
-DROP TRIGGER IF EXISTS `trg_users_after_insert`$$
-CREATE TRIGGER `trg_users_after_insert`
-AFTER INSERT ON `users`
-FOR EACH ROW
-BEGIN
-    DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
-    BEGIN
-        -- Erreur silencieuse
-    END;
-    
-    -- Enregistrer l'inscription d'un nouvel utilisateur
-    INSERT INTO audit_logs (user_id, action, table_name, record_id, details)
-    VALUES (
-        NEW.id,
-        'USER_REGISTER',
-        'users',
-        NEW.id,
-        JSON_OBJECT(
-            'email', NEW.email,
-            'is_admin', NEW.is_admin,
-            'quota_total', NEW.quota_total
-        )
-    );
-END$$
+    -- Admin qui a effectué l'action
+    al.user_id                                                  AS performed_by_id,
+    COALESCE(
+        u.email,
+        JSON_UNQUOTE(JSON_EXTRACT(al.details, '$.admin_email'))
+    )                                                           AS performed_by_email,
 
-DELIMITER ;
+    -- Action effectuée
+    al.action,
+
+    -- User ciblé par l'action
+    al.record_id                                                AS target_user_id,
+    JSON_UNQUOTE(JSON_EXTRACT(al.details, '$.target_email'))    AS target_user_email,
+
+    -- Détails quota (QUOTA_UPDATE)
+    JSON_UNQUOTE(JSON_EXTRACT(al.details, '$.old_quota'))       AS old_quota,
+    JSON_UNQUOTE(JSON_EXTRACT(al.details, '$.new_quota'))       AS new_quota,
+
+    -- Contexte réseau
+    al.ip_address,
+    al.user_agent,
+
+    -- Données brutes complètes
+    al.details
+
+FROM audit_logs al
+LEFT JOIN users u ON al.user_id = u.id
+WHERE al.action IN (
+    'USER_DELETE',
+    'QUOTA_UPDATE'
+)
+ORDER BY al.created_at DESC;
+
+
+-- ===========================================================================
+-- VUES SPÉCIFIQUES POUR LES ACTIVITÉS LIÉES AUX FICHIERS, PARTAGES, DOSSIERS
+-- ===========================================================================
+
+DROP VIEW IF EXISTS `user_files_activity_view`;
+CREATE VIEW `user_files_activity_view` AS
+SELECT
+    al.id AS log_id,
+    al.user_id,
+    u.email AS user_email,
+    al.action,
+    al.table_name,
+    al.record_id,
+    al.details,
+    al.created_at
+FROM audit_logs al
+LEFT JOIN users u ON al.user_id = u.id
+WHERE al.action IN ('FILE_UPLOAD', 'FILE_RENAME', 'FILE_DELETE', 'FILE_VERSION_UPLOAD', 'FILE_VERSION_DELETE')
+ORDER BY al.created_at DESC;
+
+DROP VIEW IF EXISTS `user_shares_activity_view`;
+CREATE VIEW `user_shares_activity_view` AS
+SELECT
+    al.id AS log_id,
+    al.user_id,
+    u.email AS user_email,
+    al.action,
+    al.table_name,
+    al.record_id,
+    al.details,
+    al.created_at
+FROM audit_logs al
+LEFT JOIN users u ON al.user_id = u.id
+WHERE al.action IN ('SHARE_CREATE', 'SHARE_REVOKE', 'SHARE_DELETE')
+ORDER BY al.created_at DESC;    
+
+DROP VIEW IF EXISTS `user_folders_activity_view`;
+CREATE VIEW `user_folders_activity_view` AS
+SELECT
+    al.id AS log_id,
+    al.user_id,
+    u.email AS user_email,
+    al.action,
+    al.table_name,
+    al.record_id,
+    al.details,
+    al.created_at
+FROM audit_logs al
+LEFT JOIN users u ON al.user_id = u.id
+WHERE al.action IN ('FOLDER_CREATE', 'FOLDER_RENAME', 'FOLDER_DELETE')
+ORDER BY al.created_at DESC;
 
 -- ============================================================================
--- FIN DU SYSTÈME D'AUDIT
+-- VUE POUR FACILITER L'AFFICHAGE DES LOGS DANS L'ADMIN
 -- ============================================================================
 
+DROP VIEW IF EXISTS `audit_logs_view`;
+CREATE VIEW `audit_logs_view` AS
+SELECT
+    al.id,
+    al.user_id,
+    u.email AS user_email,
+    al.action,
+    al.table_name,
+    al.record_id,
+    al.details,
+    al.created_at
+FROM audit_logs al
+LEFT JOIN users u ON al.user_id = u.id
+ORDER BY al.created_at DESC;
 
+DROP VIEW IF EXISTS `downloads_log_view`;
+CREATE VIEW `downloads_log_view` AS
+SELECT
+    dl.id,
+    dl.share_id,
+    s.kind AS share_kind,
+    dl.version_id,
+    fv.file_id,
+    f.original_name AS file_name,
+    dl.downloaded_at,
+    dl.ip,
+    dl.user_agent,
+    dl.success,
+    dl.message
+FROM downloads_log dl
+LEFT JOIN shares s ON dl.share_id = s.id
+LEFT JOIN file_versions fv ON dl.version_id = fv.id
+LEFT JOIN files f ON fv.file_id = f.id
+ORDER BY dl.downloaded_at DESC;
 
-
+-- ============================================================================
+-- FIN DU FICHIER
+-- ============================================================================
